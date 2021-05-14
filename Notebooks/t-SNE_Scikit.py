@@ -55,6 +55,22 @@ dig_data_df, num_df = load_digits(return_X_y=True,as_frame=True)
 print('++ INFO: Digits data frame dimension ',dig_data_df.shape)
 
 # ***
+# ## Load Fashion Data
+
+# +
+# Load fashion data (test only)
+fashion_path = os.path.join(PRJDIR,'Data','Fashion_Data') # Path to fashion data set
+
+fash_test_img  = np.load(fashion_path+'/test_images.npy') # Load test images
+fash_test_lab  = np.load(fashion_path+'/test_labels.npy') # Load test labels
+
+fash_img_df = pd.DataFrame(fash_test_img.reshape((fash_test_img.shape[0], 784)))[0:1000] # Flatten image matricies and convert images array to pandas df
+fash_lab_df = pd.DataFrame(fash_test_lab)[0:1000] # Convert lables array to pandas df
+
+print('++ INFO: Digits data frame dimension ',fash_img_df.shape)
+# -
+
+# ***
 # ## Load Widgets
 
 p_list = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300]
@@ -69,13 +85,13 @@ LearningRate = pn.widgets.Select(name='Select Learning Rate', options=l_list, va
 
 @pn.depends(Perplexity.param.value,LearningRate.param.value)
 def TSNE_3D_plot(p,l):
-    data_transformed = TSNE(n_components=3, perplexity=p, learning_rate=l).fit_transform(dig_data_df) # Apply TSNE to transform data to 3D
+    data_transformed = TSNE(n_components=3, perplexity=p, learning_rate=l).fit_transform(fash_img_df) # Apply TSNE to transform data to 3D
     
     plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
-    plot_input['Number'] = num_df.astype(str) # Add column of number identifier with elements as type string
+    plot_input['Label'] = fash_lab_df.astype(str) # Add column of number identifier with elements as type string
     
-    # Created 3D scatter plot of embedded data and color by number
-    plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Number', width=700, height=600, opacity=0.7)
+    # Created 3D scatter plot of embedded data and color by label
+    plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Label', width=700, height=600, opacity=0.7)
     plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)), hovertemplate=["idx: "+str(x) for x in plot_input.index])
     
     return plot
