@@ -90,8 +90,8 @@ dig_dist_freq, dig_dist_edges = np.histogram(np.array(dig_dist)[triangle], 50) #
 
 # Create matrix and histogram plots
 # ---------------------------------
-dig_corr_img = hv.Image(dig_corr, bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix')
-dig_dist_img = hv.Image(dig_dist, bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix')
+dig_corr_img = hv.Image(np.rot90(dig_corr), bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix')
+dig_dist_img = hv.Image(np.rot90(dig_dist), bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix')
 dig_corr_his = hv.Histogram((dig_corr_edges, dig_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram')
 dig_dist_his = hv.Histogram((dig_dist_edges, dig_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram')
 
@@ -151,11 +151,90 @@ fash_dist_freq, fash_dist_edges = np.histogram(np.array(fash_dist)[triangle], 50
 # Create matrix and histogram plots
 # ---------------------------------
 # raterize() fucntion used for big data set
-fash_corr_img = rasterize(hv.Image(fash_corr, bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix'))
-fash_dist_img = rasterize(hv.Image(fash_dist, bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix'))
+fash_corr_img = rasterize(hv.Image(np.rot90(fash_corr), bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix'))
+fash_dist_img = rasterize(hv.Image(np.rot90(fash_dist), bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix'))
 fash_corr_his = rasterize(hv.Histogram((fash_corr_edges, fash_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram'))
 fash_dist_his = rasterize(hv.Histogram((fash_dist_edges, fash_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram'))
 
 # Display all digit data plots
 # ----------------------------
 (fash_corr_img+fash_corr_his+fash_dist_img+fash_dist_his).opts(opts.Layout(shared_axes=False)).cols(2)
+
+# ***
+# ## Resting State fMRI Data
+
+# +
+SubjectList = ['sub-S07', 'sub-S08', 'sub-S09', 'sub-S10', 'sub-S13', 'sub-S14', 'sub-S15', 'sub-S16', 'sub-S20', 'sub-S24', 'sub-S25', 'sub-S26', 
+               'sub-S27', 'sub-S29', 'sub-S30']
+SubjSelect = pn.widgets.Select(name='Select Subject', options=SubjectList, value=SubjectList[0],width=200)
+
+WLList = [30, 46, 60]
+WLSelect = pn.widgets.Select(name='Select Window Length', options=WLList, value=WLList[0],width=200)
+
+
+# -
+
+@pn.depends(SubjSelect.param.value, WLSelect.param.value)
+def rsfMRI(SBJ, WL_sec):
+    rs_fMRI_path = osp.join('/data/SFIM_Vigilance/PRJ_Vigilance_Smk02/PrcsData',SBJ,'D02_Preproc_fMRI','errts.'+SBJ+'.Craddock_T2Level_0200.wl'+str(WL_sec).zfill(3)+'s.fanaticor_ts.1D')
+    rs_fMRI_df = pd.read_csv(rs_fMRI_path, sep='\t', header=None)
+    
+    rs_fMRI_num_samp = rs_fMRI_df.shape[0]
+    
+    rs_fMRI_corr = np.corrcoef(rs_fMRI_df) # Correlation matrix
+    rs_fMRI_dist = pairwise_distances(rs_fMRI_df, metric='euclidean') # Distance matrix
+    
+    triangle = np.mask_indices(rs_fMRI_num_samp, np.triu, k=1) # Top triangle mask for matricies
+    rs_fMRI_corr_freq, rs_fMRI_corr_edges = np.histogram(np.array(rs_fMRI_corr)[triangle], 50) # Compute histogram of top triangle of correlation matrix (50 bars)
+    rs_fMRI_dist_freq, rs_fMRI_dist_edges = np.histogram(np.array(rs_fMRI_dist)[triangle], 50) # Compute histogram of top triangle of distance matrix (50 bars)
+    
+    rs_fMRI_corr_img = rasterize(hv.Image(np.rot90(rs_fMRI_corr), bounds=(-0.5, -0.5, rs_fMRI_num_samp-1.5, rs_fMRI_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix'))
+    rs_fMRI_dist_img = rasterize(hv.Image(np.rot90(rs_fMRI_dist), bounds=(-0.5, -0.5, rs_fMRI_num_samp-1.5, rs_fMRI_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix'))
+    rs_fMRI_corr_his = rasterize(hv.Histogram((rs_fMRI_corr_edges, rs_fMRI_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram'))
+    rs_fMRI_dist_his = rasterize(hv.Histogram((rs_fMRI_dist_edges, rs_fMRI_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram'))
+    
+    dash = (rs_fMRI_corr_img+rs_fMRI_corr_his+rs_fMRI_dist_img+rs_fMRI_dist_his).opts(opts.Layout(shared_axes=False)).cols(2)
+    
+    return dash
+
+
+pn.Column(pn.Row(SubjSelect, WLSelect), rsfMRI)
+
+# ***
+# ## NYC Math Test Data
+
+# +
+# Load NYC Math Test Data
+# -----------------------
+math_data = pd.read_csv(PRJDIR+'/Data/NYC_Math_Test.csv').infer_objects() # Read csv file of data
+math_data = data1[data1['Grade'] != 'All Grades'].reset_index(drop=True) # Get rid of 'All Grades' rows
+
+math_df = data2[['Level 1 #', 'Level 1 %','Level 2 #', 'Level 2 %', 'Level 3 #', 'Level 3 %', 'Level 4 #', 'Level 4 %']].copy() # Just level and percent data
+math_lab_df = data2[['Category', 'Year']].copy() # Lable by catagory or year
+
+math_num_samp = math_df.shape[0] # Size of data set
+
+print('++ INFO: Digits data frame dimension ',math_df.shape)
+# -
+
+# Compute correlation and distance matrix
+# ---------------------------------------
+math_corr = np.corrcoef(math_df) # Correlation matrix
+math_dist = pairwise_distances(math_df, metric='euclidean') # Distance matrix
+
+# Compute distribution of correlation and distance matrix
+# -------------------------------------------------------
+triangle = np.mask_indices(math_num_samp, np.triu, k=1) # Top triangle mask for matricies
+math_corr_freq, math_corr_edges = np.histogram(np.array(math_corr)[triangle], 50) # Compute histogram of top triangle of correlation matrix (50 bars)
+math_dist_freq, math_dist_edges = np.histogram(np.array(math_dist)[triangle], 50) # Compute histogram of top triangle of distance matrix (50 bars)
+
+# Create matrix and histogram plots
+# ---------------------------------
+math_corr_img = hv.Image(np.rot90(math_corr), bounds=(-0.5, -0.5, math_num_samp-1.5, math_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix')
+math_dist_img = hv.Image(np.rot90(math_dist), bounds=(-0.5, -0.5, math_num_samp-1.5, math_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix')
+math_corr_his = hv.Histogram((math_corr_edges, math_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram')
+math_dist_his = hv.Histogram((math_dist_edges, math_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram')
+
+# Display all digit data plots
+# ----------------------------
+(math_corr_img+math_corr_his+math_dist_img+math_dist_his).opts(opts.Layout(shared_axes=False)).cols(2)
