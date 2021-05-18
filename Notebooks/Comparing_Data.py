@@ -70,12 +70,15 @@ PRJDIR = '/data/SFIMJGC/PRJ_Manifold_Learning' # Project directory path
 # ----------------
 dig_img_df, dig_lab_df = load_digits(return_X_y=True,as_frame=True)
 
-dig_num_samp = dig_img_df.shape[0]
+dig_img_df['Digit'] = dig_lab_df # Combime data frames
+dig_img_df = dig_img_df.sort_values(by=['Digit']).reset_index(drop=True) # Sort data by digit
+dig_lab_df = pd.DataFrame(dig_img_df['Digit']) # Savel labels as seperate data frame
+dig_img_df = dig_img_df.drop(['Digit'], axis=1) # Drop label column
+
+dig_num_samp = dig_img_df.shape[0]  # Save number of samples as a varable
 
 print('++ INFO: Digits data frame dimension ',dig_img_df.shape)
 # -
-
-dig_lab_df.value_counts(ascending=True)
 
 # Compute correlation and distance matrix
 # ---------------------------------------
@@ -90,8 +93,8 @@ dig_dist_freq, dig_dist_edges = np.histogram(np.array(dig_dist)[triangle], 50) #
 
 # Create matrix and histogram plots
 # ---------------------------------
-dig_corr_img = hv.Image(np.rot90(dig_corr), bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix')
-dig_dist_img = hv.Image(np.rot90(dig_dist), bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix')
+dig_corr_img = hv.Image(np.rot90(dig_corr), bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(cmap='viridis', colorbar=True, height=300, width=400, title='Correlation Matrix')
+dig_dist_img = hv.Image(np.rot90(dig_dist), bounds=(-0.5, -0.5, dig_num_samp-1.5, dig_num_samp-1.5)).opts(cmap='viridis', colorbar=True, height=300, width=400, title='Distance Matrix')
 dig_corr_his = hv.Histogram((dig_corr_edges, dig_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram')
 dig_dist_his = hv.Histogram((dig_dist_edges, dig_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram')
 
@@ -106,7 +109,7 @@ dig_dist_his = hv.Histogram((dig_dist_edges, dig_dist_freq)).opts(xlabel='Distan
 # * Number of samples: 10,000 (test only)
 # * Number of features: 784 (28x28)
 # * Number of groups: 10
-# * Pixle value range: ??
+# * Pixle value range: 0-255
 #
 # | Label | Description | Number of Samples |
 # | :---: | :---: | :---: |
@@ -129,10 +132,15 @@ fashion_path = os.path.join(PRJDIR,'Data','Fashion_Data') # Path to fashion data
 fash_test_img  = np.load(fashion_path+'/test_images.npy') # Load test images
 fash_test_lab  = np.load(fashion_path+'/test_labels.npy') # Load test labels
 
-fash_num_samp = fash_test_img.shape[0]
+fash_num_samp = fash_test_img.shape[0] # Save number of samples as a varable
 
 fash_img_df = pd.DataFrame(fash_test_img.reshape((fash_num_samp, 784))) # Flatten image matricies and convert images array to pandas df
 fash_lab_df = pd.DataFrame(fash_test_lab) # Convert lables array to pandas df
+
+fash_img_df['Label'] = fash_lab_df # Combime data frames
+fash_img_df = fash_img_df.sort_values(by=['Label']).reset_index(drop=True) # Sort data by label
+fash_lab_df = pd.DataFrame(fash_img_df['Label']) # Savel labels as seperate data frame
+fash_img_df = fash_img_df.drop(['Label'], axis=1) # Drop label column
 
 print('++ INFO: Digits data frame dimension ',fash_img_df.shape)
 # -
@@ -151,90 +159,67 @@ fash_dist_freq, fash_dist_edges = np.histogram(np.array(fash_dist)[triangle], 50
 # Create matrix and histogram plots
 # ---------------------------------
 # raterize() fucntion used for big data set
-fash_corr_img = rasterize(hv.Image(np.rot90(fash_corr), bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix'))
-fash_dist_img = rasterize(hv.Image(np.rot90(fash_dist), bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix'))
+fash_corr_img = rasterize(hv.Image(np.rot90(fash_corr), bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(cmap='viridis', colorbar=True, height=300, width=400, title='Correlation Matrix'))
+fash_dist_img = rasterize(hv.Image(np.rot90(fash_dist), bounds=(-0.5, -0.5, fash_num_samp-1.5, fash_num_samp-1.5)).opts(cmap='viridis', colorbar=True, height=300, width=400, title='Distance Matrix'))
 fash_corr_his = rasterize(hv.Histogram((fash_corr_edges, fash_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram'))
 fash_dist_his = rasterize(hv.Histogram((fash_dist_edges, fash_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram'))
 
-# Display all digit data plots
-# ----------------------------
+# Display all fashion data plots
+# ------------------------------
 (fash_corr_img+fash_corr_his+fash_dist_img+fash_dist_his).opts(opts.Layout(shared_axes=False)).cols(2)
 
 # ***
 # ## Resting State fMRI Data
 
 # +
+# Create widgets for slecting subject and window length
+# -----------------------------------------------------
 SubjectList = ['sub-S07', 'sub-S08', 'sub-S09', 'sub-S10', 'sub-S13', 'sub-S14', 'sub-S15', 'sub-S16', 'sub-S20', 'sub-S24', 'sub-S25', 'sub-S26', 
-               'sub-S27', 'sub-S29', 'sub-S30']
-SubjSelect = pn.widgets.Select(name='Select Subject', options=SubjectList, value=SubjectList[0],width=200)
+               'sub-S27', 'sub-S29', 'sub-S30'] # List of subjects (not all subjects)
+SubjSelect = pn.widgets.Select(name='Select Subject', options=SubjectList, value=SubjectList[0],width=200) # Select subject widget
 
-WLList = [30, 46, 60]
-WLSelect = pn.widgets.Select(name='Select Window Length', options=WLList, value=WLList[0],width=200)
+WLList = [30, 46, 60] # List of valid window lenghts
+WLSelect = pn.widgets.Select(name='Select Window Length', options=WLList, value=WLList[0],width=200) # Select window length widget
 
 
 # -
 
-@pn.depends(SubjSelect.param.value, WLSelect.param.value)
+# Function for rs fMRI data plots
+# -------------------------------
+@pn.depends(SubjSelect.param.value, WLSelect.param.value) # Dependent on subject and window length widget values
 def rsfMRI(SBJ, WL_sec):
-    rs_fMRI_path = osp.join('/data/SFIM_Vigilance/PRJ_Vigilance_Smk02/PrcsData',SBJ,'D02_Preproc_fMRI','errts.'+SBJ+'.Craddock_T2Level_0200.wl'+str(WL_sec).zfill(3)+'s.fanaticor_ts.1D')
-    rs_fMRI_df = pd.read_csv(rs_fMRI_path, sep='\t', header=None)
+    # Load rs fMRI data of selected subject
+    # -------------------------------------
+    file_name = SBJ+'_fanaticor_Craddock_T2Level_0200_wl'+str(WL_sec).zfill(3)+'s_ws002s_All_PCA_vk97.5.swcorr.pkl' # Data file name
+    rs_fMRI_path = osp.join('/data/SFIM_Vigilance/PRJ_Vigilance_Smk02/PrcsData',SBJ,'D02_Preproc_fMRI',file_name) # Path to data
+    rs_fMRI_df = pd.read_pickle(rs_fMRI_path).T # Read data into pandas data frame
     
-    rs_fMRI_num_samp = rs_fMRI_df.shape[0]
-    
+    rs_fMRI_num_samp = rs_fMRI_df.shape[0]  # Save number of samples as a varable
+ 
+    # Compute correlation and distance matrix
+    # ---------------------------------------
     rs_fMRI_corr = np.corrcoef(rs_fMRI_df) # Correlation matrix
     rs_fMRI_dist = pairwise_distances(rs_fMRI_df, metric='euclidean') # Distance matrix
     
+    # Compute distribution of correlation and distance matrix
+    # -------------------------------------------------------
     triangle = np.mask_indices(rs_fMRI_num_samp, np.triu, k=1) # Top triangle mask for matricies
-    rs_fMRI_corr_freq, rs_fMRI_corr_edges = np.histogram(np.array(rs_fMRI_corr)[triangle], 50) # Compute histogram of top triangle of correlation matrix (50 bars)
-    rs_fMRI_dist_freq, rs_fMRI_dist_edges = np.histogram(np.array(rs_fMRI_dist)[triangle], 50) # Compute histogram of top triangle of distance matrix (50 bars)
+    rs_fMRI_corr_freq, rs_fMRI_corr_edges = np.histogram(np.array(rs_fMRI_corr)[triangle], 100) # Compute histogram of top triangle of correlation matrix (50 bars)
+    rs_fMRI_dist_freq, rs_fMRI_dist_edges = np.histogram(np.array(rs_fMRI_dist)[triangle], 100) # Compute histogram of top triangle of distance matrix (50 bars)
     
-    rs_fMRI_corr_img = rasterize(hv.Image(np.rot90(rs_fMRI_corr), bounds=(-0.5, -0.5, rs_fMRI_num_samp-1.5, rs_fMRI_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix'))
-    rs_fMRI_dist_img = rasterize(hv.Image(np.rot90(rs_fMRI_dist), bounds=(-0.5, -0.5, rs_fMRI_num_samp-1.5, rs_fMRI_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix'))
+    # Create matrix and histogram plots
+    # ---------------------------------
+    # raterize() fucntion used for big data set
+    rs_fMRI_corr_img = rasterize(hv.Image(np.rot90(rs_fMRI_corr), bounds=(-0.5, -0.5, rs_fMRI_num_samp-1.5, rs_fMRI_num_samp-1.5)).opts(cmap='viridis', colorbar=True, height=300, width=400, title='Correlation Matrix'))
+    rs_fMRI_dist_img = rasterize(hv.Image(np.rot90(rs_fMRI_dist), bounds=(-0.5, -0.5, rs_fMRI_num_samp-1.5, rs_fMRI_num_samp-1.5)).opts(cmap='viridis', colorbar=True, height=300, width=400, title='Distance Matrix'))
     rs_fMRI_corr_his = rasterize(hv.Histogram((rs_fMRI_corr_edges, rs_fMRI_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram'))
     rs_fMRI_dist_his = rasterize(hv.Histogram((rs_fMRI_dist_edges, rs_fMRI_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram'))
     
-    dash = (rs_fMRI_corr_img+rs_fMRI_corr_his+rs_fMRI_dist_img+rs_fMRI_dist_his).opts(opts.Layout(shared_axes=False)).cols(2)
+    dash = (rs_fMRI_corr_img+rs_fMRI_corr_his+rs_fMRI_dist_img+rs_fMRI_dist_his).opts(opts.Layout(shared_axes=False)).cols(2) # Dashboard of plots
     
     return dash
 
 
+# Display all rs fMRI data plots and widgets
+# ------------------------------------------
 pn.Column(pn.Row(SubjSelect, WLSelect), rsfMRI)
-
-# ***
-# ## NYC Math Test Data
-
-# +
-# Load NYC Math Test Data
-# -----------------------
-math_data = pd.read_csv(PRJDIR+'/Data/NYC_Math_Test.csv').infer_objects() # Read csv file of data
-math_data = data1[data1['Grade'] != 'All Grades'].reset_index(drop=True) # Get rid of 'All Grades' rows
-
-math_df = data2[['Level 1 #', 'Level 1 %','Level 2 #', 'Level 2 %', 'Level 3 #', 'Level 3 %', 'Level 4 #', 'Level 4 %']].copy() # Just level and percent data
-math_lab_df = data2[['Category', 'Year']].copy() # Lable by catagory or year
-
-math_num_samp = math_df.shape[0] # Size of data set
-
-print('++ INFO: Digits data frame dimension ',math_df.shape)
-# -
-
-# Compute correlation and distance matrix
-# ---------------------------------------
-math_corr = np.corrcoef(math_df) # Correlation matrix
-math_dist = pairwise_distances(math_df, metric='euclidean') # Distance matrix
-
-# Compute distribution of correlation and distance matrix
-# -------------------------------------------------------
-triangle = np.mask_indices(math_num_samp, np.triu, k=1) # Top triangle mask for matricies
-math_corr_freq, math_corr_edges = np.histogram(np.array(math_corr)[triangle], 50) # Compute histogram of top triangle of correlation matrix (50 bars)
-math_dist_freq, math_dist_edges = np.histogram(np.array(math_dist)[triangle], 50) # Compute histogram of top triangle of distance matrix (50 bars)
-
-# Create matrix and histogram plots
-# ---------------------------------
-math_corr_img = hv.Image(np.rot90(math_corr), bounds=(-0.5, -0.5, math_num_samp-1.5, math_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Correlation Matrix')
-math_dist_img = hv.Image(np.rot90(math_dist), bounds=(-0.5, -0.5, math_num_samp-1.5, math_num_samp-1.5)).opts(colorbar=True, height=300, width=400, title='Distance Matrix')
-math_corr_his = hv.Histogram((math_corr_edges, math_corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram')
-math_dist_his = hv.Histogram((math_dist_edges, math_dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram')
-
-# Display all digit data plots
-# ----------------------------
-(math_corr_img+math_corr_his+math_dist_img+math_dist_his).opts(opts.Layout(shared_axes=False)).cols(2)
