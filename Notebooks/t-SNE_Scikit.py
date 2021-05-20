@@ -27,6 +27,7 @@ from sklearn.manifold  import TSNE
 from sklearn.neighbors import kneighbors_graph
 import scipy
 from scipy.spatial.distance import correlation as dis_corr
+from scipy.io import loadmat
 from sklearn.metrics import pairwise_distances
 from scipy.sparse import save_npz, load_npz
 from sklearn.datasets import load_digits
@@ -48,47 +49,217 @@ print('++ INFO: Second Port available: %d' % port_tunnel)
 # -
 
 # ***
-# ## Load Digits Data
-
-# Load number data and print dimensions
-dig_data_df, num_df = load_digits(return_X_y=True,as_frame=True)
-print('++ INFO: Digits data frame dimension ',dig_data_df.shape)
-
-# ***
-# ## Load Fashion Data
+# ## Digits Data
 
 # +
-# Load fashion data (test only)
+# Load digits data
+dig_img_df, dig_lab_df = load_digits(return_X_y=True,as_frame=True)
+
+print('++ INFO: Digits data frame dimension ',dig_img_df.shape)
+# -
+
+# ***
+# ## Fashion Data
+
+# +
+# Load fashion data (first 1000 of test only)
 fashion_path = os.path.join(PRJDIR,'Data','Fashion_Data') # Path to fashion data set
 
-fash_test_img  = np.load(fashion_path+'/test_images.npy') # Load test images
-fash_test_lab  = np.load(fashion_path+'/test_labels.npy') # Load test labels
+fash_img_full_df = np.load(fashion_path+'/test_images.npy') # Load test images
+fash_lab_full_df = np.load(fashion_path+'/test_labels.npy') # Load test labels
 
-fash_img_df = pd.DataFrame(fash_test_img.reshape((fash_test_img.shape[0], 784)))[0:1000] # Flatten image matricies and convert images array to pandas df
-fash_lab_df = pd.DataFrame(fash_test_lab)[0:1000] # Convert lables array to pandas df
+fash_img_df = pd.DataFrame(fash_img_full_df.reshape((fash_img_full_df.shape[0], 784)))[0:1000] # Flatten image matricies and convert images array to pandas df
+fash_lab_df = pd.DataFrame(fash_lab_full_df)[0:1000] # Convert lables array to pandas df
 
 print('++ INFO: Digits data frame dimension ',fash_img_df.shape)
 # -
 
 # ***
-# ## Load Widgets
+# ## Resting State fMRI
+
+# +
+# Load rs fMRI subject information
+rs_fMRI_sub_df = pd.read_pickle(PRJDIR+'/Data/Samika_DSet02/valid_run_df.pkl') # Load valid subject info
+
+rs_fMRI_SubDict = {} # Empty dictionary
+for i,idx in enumerate(rs_fMRI_sub_df.index):
+    sbj  = rs_fMRI_sub_df.loc[idx]['Sbj']
+    run  = rs_fMRI_sub_df.loc[idx]['Run']
+    if sbj in rs_fMRI_SubDict.keys():
+        rs_fMRI_SubDict[sbj].append(run)
+    else:
+        rs_fMRI_SubDict[sbj] = ['All',run]
+
+# List of subjects
+rs_fMRI_SubjectList = list(rs_fMRI_SubDict.keys())
+
+# +
+# Create widgets for rs fMRI data
+rs_fMRI_SubjSelect   = pn.widgets.Select(name='Select Subject', options=rs_fMRI_SubjectList, value=rs_fMRI_SubjectList[0], width=200) # Select subject
+rs_fMRI_RunSelect    = pn.widgets.Select(name='Select Run', options=rs_fMRI_SubDict[rs_fMRI_SubjSelect.value], value=rs_fMRI_SubDict[rs_fMRI_SubjSelect.value][1], width=200) # Select run for chosen subject
+rs_fMRI_WindowSelect = pn.widgets.Select(name='Select Window Length (in seconds)', options=[30,46,60], width=200) # Select window lenght
+
+# Updates available runs given SubjSelect value
+def update_run(event):
+    rs_fMRI_RunSelect.options = rs_fMRI_SubDict[event.new]
+rs_fMRI_SubjSelect.param.watch(update_run,'value')
+
+
+# -
+
+def winner_takes_all(my_array):
+    """
+    This function desighned to output the number that apears most frequently in a nupy array.
+    This function will be used to slelect the sleep staging value of each window after sliding window correlation.
+    Since the values only range from 0 to 3 any NaN values are changed to a value of 4.
+    Then using the function np.bincount each value in the np array is counted.
+    The value with the highest count is called the "winner".
+    """
+    # Changes NaN to value of 4
+    if np.isnan(np.sum(my_array)) == True:
+        my_array[np.isnan(my_array)] = 4
+    my_array = my_array.astype(int) # Change all values in array as integers
+    counts = np.bincount(my_array) # Count each element
+    winner = np.argmax(counts) # Choose element with highest count
+    return winner
+
+
+# Load rs fMRI data
+@pn.depends(rs_fMRI_SubjSelect.param.value, rs_fMRI_RunSelect.param.value, rs_fMRI_WindowSelect.param.value)
+def load_rsfMRI_data(SBJ, RUN, WL_sec):
+    WL_trs = int(WL_sec/2) # Window length in TR's
+    
+    # Load SWC data
+    # -------------
+    file_name = SBJ+'_fanaticor_Craddock_T2Level_0200_wl'+str(WL_sec).zfill(3)+'s_ws002s_'+RUN+'_PCA_vk97.5.swcorr.pkl' # Data file name
+    data_path = osp.join('/data/SFIM_Vigilance/PRJ_Vigilance_Smk02/PrcsData',SBJ,'D02_Preproc_fMRI',file_name) # Path to data
+    data_df = pd.read_pickle(data_path).T # Read data into pandas data frame
+    num_TR = data_df.shape[0] # Number of TR's in run
+    num_orig_TR = num_TR + WL_trs - 1 # Number of original TR's before SWC
+    
+    # Load sleep staging data
+    # -----------------------
+    WL_trs = int(WL_sec/2) # Window length in TR's
+    sleep_temp = pd.DataFrame(columns=['Sleep Value','Sleep Stage']) # Temporary data frame to organize data by sleep stage
+    # 1. Sleep staging data is saved as an individual data frame for each run which we will call "EEG_sleep_df".
+    # If a single run is selected that data frame is simply loaded.
+    # If all runs are slected then "EEG_sleep_df" is a single data frame with all runs concatinated in the same order as the concatinated data
+    if RUN != 'All': # Single run
+        sleep_file_path = osp.join('/data/SFIM_Vigilance/PRJ_Vigilance_Smk02/PrcsData',SBJ,'D02_Preproc_fMRI',SBJ+'_'+RUN+'_EEG_sleep.pkl') # Load sleep data
+        EEG_sleep_df    = pd.read_pickle(sleep_file_path) # Save as pandas data frame
+    else: # All runs
+        run_list = rs_fMRI_SubDict[SBJ].copy() # List of runs for that subject
+        run_list.remove('All') # Remove "All" from list of runs
+        EEG_sleep_df = pd.DataFrame(columns=['dataset','subject','cond','TR','sleep','drowsiness','spectral','seconds','stage']) # Empty sleep staged data frame with coulumn names
+        # Append each runs sleep stage data to end of EEG_sleep_df
+        for r in run_list:
+            sleep_file_path    = osp.join('/data/SFIM_Vigilance/PRJ_Vigilance_Smk02/PrcsData',SBJ,'D02_Preproc_fMRI',SBJ+'_'+r+'_EEG_sleep.pkl')
+            run_sleep_df = pd.read_pickle(sleep_file_path)
+            EEG_sleep_df = EEG_sleep_df.append(run_sleep_df).reset_index(drop = True)
+    # 2. The sleep stage value for each window is chosen using the winner_takes_all() function for that windows window length.
+    for i in range(0,num_orig_TR-WL_trs+1): # Iterate through number of windows for given data (Number_of_TRs - Number_of_TRs_per_window + 1)
+        sleep_array  = np.array([x for x in EEG_sleep_df.loc[i:i+(WL_trs-1), 'sleep']]) # Numpy array of values pertaining to window
+        sleep_val = winner_takes_all(sleep_array) # Choose sleep value using winner_takes_all() function
+        sleep_temp.loc[i, 'Sleep Value'] = int(sleep_val) # Ensure sleep value is an integer
+    # 3. Asighn sleep stage to each sleep value
+    #    0 = wake
+    #    1 = stage 1
+    #    2 = stage 2
+    #    3 = stage 3
+    #    4 = undetermined stage
+    for i,idx in enumerate(sleep_temp.index):
+        if sleep_temp.loc[idx, 'Sleep Value'] == 0:
+            sleep_temp.loc[idx, 'Sleep Stage'] = 'Wake'
+        elif sleep_temp.loc[idx, 'Sleep Value'] == 1:
+            sleep_temp.loc[idx, 'Sleep Stage'] = 'Stage 1'
+        elif sleep_temp.loc[idx, 'Sleep Value'] == 2:
+            sleep_temp.loc[idx, 'Sleep Stage'] = 'Stage 2'
+        elif sleep_temp.loc[idx, 'Sleep Value'] == 3:
+            sleep_temp.loc[idx, 'Sleep Stage'] = 'Stage 3'
+        elif sleep_temp.loc[idx, 'Sleep Value'] == 4:
+            sleep_temp.loc[idx, 'Sleep Stage'] = 'Undetermined'
+    # Save sleep stage data as label_df
+    label_df = sleep_temp['Sleep Stage']
+    
+    return data_df, label_df
+
+
+# ***
+# ## Task fMRI
+
+# Create widgets for task fMRI data
+task_fMRI_SubjectList  = ['SBJ06', 'SBJ08', 'SBJ10', 'SBJ12', 'SBJ16', 'SBJ18', 'SBJ20', 'SBJ22', 'SBJ24', 'SBJ26', 'SBJ07', 'SBJ09',
+                          'SBJ11', 'SBJ13', 'SBJ17', 'SBJ19', 'SBJ21', 'SBJ23', 'SBJ25', 'SBJ27'] # List of subjects
+task_fMRI_SubjSelect   = pn.widgets.Select(name='Select Subject', options=task_fMRI_SubjectList, value=task_fMRI_SubjectList[0], width=200) # Select subject
+task_fMRI_PureSelect   = pn.widgets.Select(name='Select Window Type', options=['pure', 'not pure'], value='not pure', width=200) # Select window purity
+task_fMRI_WindowSelect = pn.widgets.Select(name='Select Window Length (in seconds)', options=[30,45], width=200) # Select window lenght
+
+
+@pn.depends(task_fMRI_SubjSelect.param.value, task_fMRI_PureSelect.param.value, task_fMRI_WindowSelect.param.value)
+def load_taskfMRI_data(SBJ, PURE, WL_sec):
+    # Define PURE varaible based on widget
+    # ------------------------------------
+    if PURE == 'not pure':  
+        PURE = '' # Load data with non pure windows
+    
+    # Load task fMRI data
+    # -------------------
+    file_name = SBJ+'_CTask001_WL0'+str(WL_sec)+'_WS01'+PURE+'_NROI0200_dF.mat' # Data file name
+    data_path = osp.join('/data/SFIMJGC_HCP7T/PRJ_CognitiveStateDetection02/PrcsData_PNAS2015',SBJ,'D02_CTask001',file_name) # Path to data
+    data_df   = loadmat(data_path)['CB']['snapshots'][0][0] # Read data
+    
+    # Load taks staging data
+    # ----------------------
+    label_df = pd.DataFrame(0, index=np.arange(data_df.shape[0]), columns=['0'])
+    
+    return data_df, label_df
+
+
+# ***
+# ## Create t-SNE Widgets
+
+d_list = ['Digits', 'Fashion', 'rs fMRI', 'task fMRI']
+DataType = pn.widgets.Select(name='Select Data', options=d_list, value=d_list[0], width=200)
 
 p_list = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300]
-Perplexity = pn.widgets.Select(name='Select Perplexity', options=p_list, value=p_list[0], width=200) # Select perplexity value (treat like k value in k-NN)
+Perplexity = pn.widgets.Select(name='Select Perplexity', options=p_list, value=p_list[0], width=200) # Select perplexity value
 
 l_list = [10,20,30,40,50,60,70,80,90,100,150,200,250,300,350,400,450,500,600,700,800,900,1000]
 LearningRate = pn.widgets.Select(name='Select Learning Rate', options=l_list, value=l_list[0], width=200) # Select learning rate
 
 
+@pn.depends(DataType.param.value)
+def data_widg(d):
+    if d == 'rs fMRI':
+        panel = pn.Row(rs_fMRI_SubjSelect, rs_fMRI_RunSelect, rs_fMRI_WindowSelect)
+    elif d == 'task fMRI':
+        panel = pn.Row(task_fMRI_SubjSelect, task_fMRI_PureSelect, task_fMRI_WindowSelect)
+    else:
+        panel = pn.Row()
+    return panel
+
+
 # ***
 # ## Plotting Function
 
-@pn.depends(Perplexity.param.value,LearningRate.param.value)
-def TSNE_3D_plot(p,l):
-    data_transformed = TSNE(n_components=3, perplexity=p, learning_rate=l).fit_transform(fash_img_df) # Apply TSNE to transform data to 3D
+@pn.depends(DataType.param.value, Perplexity.param.value, LearningRate.param.value, rs_fMRI_SubjSelect.param.value, rs_fMRI_RunSelect.param.value,
+            rs_fMRI_WindowSelect.param.value, task_fMRI_SubjSelect.param.value, task_fMRI_PureSelect.param.value, task_fMRI_WindowSelect.param.value)
+def TSNE_3D_plot(d, p, l, rs_SBJ, rs_RUN, rs_WL_sec, task_SBJ, task_PURE, task_WL_sec):
+    if d == 'Digits':
+        data_df  = dig_img_df
+        label_df = dig_lab_df
+    elif d == 'Fashion':
+        data_df  = fash_img_df
+        label_df = fash_lab_df
+    elif d == 'rs fMRI':
+        data_df, label_df = load_rsfMRI_data(rs_SBJ, rs_RUN, rs_WL_sec)
+    elif d == 'task fMRI':
+        data_df, label_df = load_taskfMRI_data(task_SBJ, task_PURE, task_WL_sec)
+    
+    data_transformed = TSNE(n_components=3, perplexity=p, learning_rate=l).fit_transform(data_df) # Apply TSNE to transform data to 3D
     
     plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
-    plot_input['Label'] = fash_lab_df.astype(str) # Add column of number identifier with elements as type string
+    plot_input['Label'] = label_df.astype(str) # Add column of number identifier with elements as type string
     
     # Created 3D scatter plot of embedded data and color by label
     plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Label', width=700, height=600, opacity=0.7)
@@ -97,7 +268,7 @@ def TSNE_3D_plot(p,l):
     return plot
 
 
-dash = pn.Column(pn.Row(Perplexity,LearningRate),TSNE_3D_plot) # Create embedding dashboard
+dash = pn.Column(pn.Row(DataType, Perplexity, LearningRate), data_widg, TSNE_3D_plot) # Create embedding dashboard
 
 dash_server = dash.show(port=port_tunnel, open=False) # Run dashboard and create link
 
