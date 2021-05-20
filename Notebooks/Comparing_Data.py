@@ -323,8 +323,8 @@ def task_fMRI_plots(SBJ, PURE, WL_sec, corr_range):
     # -------------------
     file_name = SBJ+'_CTask001_WL0'+str(WL_sec)+'_WS01'+PURE+'_NROI0200_dF.mat' # Data file name
     data_path = osp.join('/data/SFIMJGC_HCP7T/PRJ_CognitiveStateDetection02/PrcsData_PNAS2015',SBJ,'D02_CTask001',file_name) # Path to data
-    data_df = loadmat(data_path)['CB']['snapshots'][0][0] # Read data
-    num_samp = data_df.shape[0]  # Save number of samples as a varable
+    data_df   = loadmat(data_path)['CB']['snapshots'][0][0] # Read data
+    num_samp  = data_df.shape[0]  # Save number of samples as a varable
     
     # Compute correlation and distance matrix
     # ---------------------------------------

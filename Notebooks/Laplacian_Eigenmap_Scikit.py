@@ -48,7 +48,7 @@ print('++ INFO: Second Port available: %d' % port_tunnel)
 # -
 
 # ***
-# ## Load Data
+# ## Load Digits Data
 
 # Load number data and print dimensions
 data_df, num_df = load_digits(return_X_y=True,as_frame=True)
