@@ -308,12 +308,88 @@ task_fMRI_PureSelect   = pn.widgets.Select(name='Select Window Type', options=['
 task_fMRI_WindowSelect = pn.widgets.Select(name='Select Window Length (in seconds)', options=[30,45], width=200) # Select window lenght
 task_fMRI_CorrRange    = pn.widgets.RangeSlider(name='Correlation Range', start=-1, end=1, value=(-1, 1), step=0.01) # Correlation range slider
 
+# +
+# Task to window data frame
+# -------------------------
+orig_data_task = pd.DataFrame(index=range(0,1016),columns=['Task'])
+task_list = ['Rest', 'Memory', 'Video', 'Math', 'Memory', 'Rest', 'Math', 'Video']
+tr = 0
+for task in task_list:
+    orig_data_task['Task'][tr:tr+120] = task
+    orig_data_task['Task'][tr+120:tr+128] = 'Inbetween'
+    tr = tr+128
+orig_num_TR = orig_data_task.shape[0]
+
+def task_data(WL_sec,num_win):
+    task_df = pd.DataFrame(index=range(0,num_win),columns=['Task'])
+    WL_trs = int(WL_sec/1.5)
+    for i in range(0,num_win):
+        task_array  = np.array([x for x in orig_data_task.loc[i:i+(WL_trs-1), 'Task']])
+        if np.all(task_array == task_array[0]):
+            task_df.loc[i, 'Task'] = task_array[0]
+        else:
+            task_df.loc[i, 'Task'] = 'Inbetween'
+    pure_task_df = task_df.copy()
+    pure_task_df = pure_task_df.drop(pure_task_df[pure_task_df['Task'] == 'Inbetween' ].index).reset_index(drop = True)
+    pure_task_df = pure_task_df[:-1]
+    return task_df, pure_task_df
+
+WL30_task_df, WL30pure_task_df = task_data(30,998)
+WL45_task_df, WL45pure_task_df = task_data(45,988)
+
+
+# +
+# Task segments
+# -------------
+def taskseg_data(data_df):
+    segment_df = pd.DataFrame(columns=['stage','start','end']) 
+    start = 0 # Start at 0th window
+    segment = [] # Empty list to append all stages in a segment (should all be the same stage)
+    for i,idx in enumerate(data_df.index): # Iterate through data_df index
+        stage = str(data_df.loc[idx]['Task']) # Save stage at index as 'stage'
+        if idx == (data_df.shape[0]-1): # If its the last index of run
+            segment.append(stage) # Append stage to segment list
+            end = start + (len(segment) - 1) # Last window of the segment is the lenght of the segment list plus the start number of the segment
+            # Append values to segment_df
+            segment_df = segment_df.append({'stage':stage, 'start':start, 'end':end}, ignore_index=True) 
+        elif stage == str(data_df.loc[idx+1]['Task']): # If the next index values stage is equal to the current stage
+            segment.append(stage) # Append stage to segment list and loop again
+        elif stage != str(data_df.loc[idx+1]['Task']): # If the next index values stage is not equal to the current stage
+            segment.append(stage) # Append stage to segment list
+            end = start + (len(segment) - 1) # Last window of the segment is the lenght of the segment list plus the start number of the segment
+            # Append values to segment_df
+            segment_df = segment_df.append({'stage':stage, 'start':start, 'end':end}, ignore_index=True)
+            start = end + 1 # Start of next segment is the last window of the last segment + 1
+            segment = [] # New empty segment list for next segment
+
+    return segment_df
+
+WL30_taskseg_df     = taskseg_data(WL30_task_df)
+WL30pure_taskseg_df = taskseg_data(WL30pure_task_df)
+WL45_taskseg_df     = taskseg_data(WL45_task_df)
+WL45pure_taskseg_df = taskseg_data(WL45pure_task_df)
+
+
+# -
 
 # Function for task fMRI data plots
 # ---------------------------------
 # Function dependent on subject, pure, and window length widget values
 @pn.depends(task_fMRI_SubjSelect.param.value, task_fMRI_PureSelect.param.value, task_fMRI_WindowSelect.param.value, task_fMRI_CorrRange.param.value)
 def task_fMRI_plots(SBJ, PURE, WL_sec, corr_range):
+    # Define segment data
+    # -------------------
+    if WL_sec == 30:
+        if PURE == 'pure':
+            seg_df = WL30pure_taskseg_df
+        else:
+            seg_df = WL30_taskseg_df
+    else:
+        if PURE == 'pure':
+            seg_df = WL45pure_taskseg_df
+        else:
+            seg_df = WL45_taskseg_df
+    
     # Define PURE varaible based on widget
     # ------------------------------------
     if PURE == 'not pure':  
@@ -325,6 +401,15 @@ def task_fMRI_plots(SBJ, PURE, WL_sec, corr_range):
     data_path = osp.join('/data/SFIMJGC_HCP7T/PRJ_CognitiveStateDetection02/PrcsData_PNAS2015',SBJ,'D02_CTask001',file_name) # Path to data
     data_df   = loadmat(data_path)['CB']['snapshots'][0][0] # Read data
     num_samp  = data_df.shape[0]  # Save number of samples as a varable
+    
+    # Create sleep segments plots
+    # ---------------------------
+    task_color_map = {'Rest': 'gray', 'Memory': 'blue', 'Video': 'yellow', 'Math': 'green', 'Inbetween': 'black'}
+    seg_x = hv.Segments(seg_df, [hv.Dimension('start', range=(-10,num_samp-1.5)), hv.Dimension('start_event', range=(-5,num_samp-1.5)),
+                              'end', 'end_event'], 'stage').opts(color='stage', cmap=task_color_map, line_width=7, show_legend=True) # x axis segments
+    seg_y = hv.Segments(seg_df, [hv.Dimension('start_event', range=(-10,num_samp-1.5)), hv.Dimension('start', range=(-5,num_samp-1.5)),
+                              'end_event', 'end'], 'stage').opts(color='stage', cmap=task_color_map, line_width=7, show_legend=False) # y axis segments
+    seg_plot = (sleep_seg_x*sleep_seg_y).opts(xlabel=' ', ylabel=' ', show_legend=False) # All segments
     
     # Compute correlation and distance matrix
     # ---------------------------------------
@@ -346,6 +431,9 @@ def task_fMRI_plots(SBJ, PURE, WL_sec, corr_range):
     corr_his = hv.Histogram((corr_edges, corr_freq)).opts(xlabel='Correlation', height=300, width=400, title='Correlation Histogram')
     dist_his = hv.Histogram((dist_edges, dist_freq)).opts(xlabel='Distance', height=300, width=400, title='Distance Histogram')
     
+    corr_img_wseg = (corr_img*seg_plot).opts(width=600, height=300, legend_position='right') # Overlay task segemnt plot with correlation matrix
+    dist_img_wseg = (dist_img*seg_plot).opts(width=600, height=300, legend_position='right') # Overlay task segemnt plot with distance matrix
+    
     dash = (corr_img+corr_his+dist_img+dist_his).opts(opts.Layout(shared_axes=False)).cols(2) # Dashboard of all plots
     
     return dash
@@ -354,3 +442,5 @@ def task_fMRI_plots(SBJ, PURE, WL_sec, corr_range):
 # Display all task fMRI data plots and widgets
 # --------------------------------------------
 pn.Column(pn.Row(task_fMRI_SubjSelect, task_fMRI_PureSelect, task_fMRI_WindowSelect), task_fMRI_CorrRange, task_fMRI_plots)
+
+
