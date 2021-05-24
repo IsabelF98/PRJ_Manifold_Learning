@@ -124,7 +124,7 @@ def winner_takes_all(my_array):
     return winner
 
 
-# Load rs fMRI data
+# Load rs fMRI data function
 @pn.depends(rs_fMRI_SubjSelect.param.value, rs_fMRI_RunSelect.param.value, rs_fMRI_WindowSelect.param.value)
 def load_rsfMRI_data(SBJ, RUN, WL_sec):
     WL_trs = int(WL_sec/2) # Window length in TR's
@@ -194,9 +194,58 @@ task_fMRI_SubjSelect   = pn.widgets.Select(name='Select Subject', options=task_f
 task_fMRI_PureSelect   = pn.widgets.Select(name='Select Window Type', options=['pure', 'not pure'], value='not pure', width=200) # Select window purity
 task_fMRI_WindowSelect = pn.widgets.Select(name='Select Window Length (in seconds)', options=[30,45], width=200) # Select window lenght
 
+# +
+# Task data frame
+orig_data_task = pd.DataFrame(index=range(0,1016),columns=['Task']) # Empty task data frame
+task_list = ['Rest', 'Memory', 'Video', 'Math', 'Memory', 'Rest', 'Math', 'Video'] # List of tasks in order they were performed
+tr = 0 # Starting at 0th TR
+for task in task_list: # For each task in the list of tasks
+    orig_data_task['Task'][tr:tr+120] = task # Append 120 TRs (180s) for the given task
+    orig_data_task['Task'][tr+120:tr+128] = 'Inbetween' # Append 8 TRs (12s) for inbetween tasks
+    tr = tr+128 # Move to next task start TR
+orig_num_TR = orig_data_task.shape[0] # Oginal number of TRs in data (1016)
 
+# Function to create task data frame after SWC is computed
+# Function inputs are the window length in seconds and the number of windows
+def task_data(WL_sec,num_win):
+    task_df = pd.DataFrame(index=range(0,num_win),columns=['Task']) # Empty task data frame
+    WL_trs = int(WL_sec/1.5) # Window length in TR's (TR = 1.5s)
+    for i in range(0,num_win): # For each window index i
+        task_array  = np.array([x for x in orig_data_task.loc[i:i+(WL_trs-1), 'Task']]) # Create an array of all tasks in a given window
+        if np.all(task_array == task_array[0]): # If all tasks are the same in the window make window task = task
+            task_df.loc[i, 'Task'] = task_array[0]
+        else:  # If all tasks are NOT the same in the window make window task = 'Inbetween'
+            task_df.loc[i, 'Task'] = 'Inbetween'
+    
+    # Create a task data frame for pure windows with tasks not windows inbetween tasks
+    pure_task_df = task_df.copy()
+    pure_task_df = pure_task_df.drop(pure_task_df[pure_task_df['Task'] == 'Inbetween'].index).reset_index(drop = True) # Drop inbetween windows
+    pure_task_df = pure_task_df[:-1] # Drop the last data point (idk why we have an extra data point?)
+    
+    return task_df, pure_task_df
+
+WL30_task_df, WL30pure_task_df = task_data(30,998) # Task data frames for WL = 30s
+WL45_task_df, WL45pure_task_df = task_data(45,988) # Task data frames for WL = 45s
+
+
+# -
+
+# Load task data function
 @pn.depends(task_fMRI_SubjSelect.param.value, task_fMRI_PureSelect.param.value, task_fMRI_WindowSelect.param.value)
 def load_taskfMRI_data(SBJ, PURE, WL_sec):
+    # Define task label data frame
+    # ----------------------------
+    if WL_sec == 30:
+        if PURE == 'pure':
+            label_df = WL30pure_task_df
+        else:
+            label_df = WL30_task_df
+    else:
+        if PURE == 'pure':
+            label_df = WL45pure_task_df
+        else:
+            label_df = WL45_task_df
+    
     # Define PURE varaible based on widget
     # ------------------------------------
     if PURE == 'not pure':  
@@ -208,26 +257,26 @@ def load_taskfMRI_data(SBJ, PURE, WL_sec):
     data_path = osp.join('/data/SFIMJGC_HCP7T/PRJ_CognitiveStateDetection02/PrcsData_PNAS2015',SBJ,'D02_CTask001',file_name) # Path to data
     data_df   = loadmat(data_path)['CB']['snapshots'][0][0] # Read data
     
-    # Load taks staging data
-    # ----------------------
-    label_df = pd.DataFrame(0, index=np.arange(data_df.shape[0]), columns=['0'])
-    
     return data_df, label_df
 
 
 # ***
 # ## Create t-SNE Widgets
 
-d_list = ['Digits', 'Fashion', 'rs fMRI', 'task fMRI']
-DataType = pn.widgets.Select(name='Select Data', options=d_list, value=d_list[0], width=200)
+# +
+d_list = ['Digits', 'Fashion', 'rs fMRI', 'task fMRI'] # List of data sets
+DataType = pn.widgets.Select(name='Select Data', options=d_list, value=d_list[0], width=200) # Select data set
 
-p_list = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300]
+p_list = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300] # List of perplexity values
 Perplexity = pn.widgets.Select(name='Select Perplexity', options=p_list, value=p_list[0], width=200) # Select perplexity value
 
-l_list = [10,20,30,40,50,60,70,80,90,100,150,200,250,300,350,400,450,500,600,700,800,900,1000]
+l_list = [10,20,30,40,50,60,70,80,90,100,150,200,250,300,350,400,450,500,600,700,800,900,1000] # List of learning rates
 LearningRate = pn.widgets.Select(name='Select Learning Rate', options=l_list, value=l_list[0], width=200) # Select learning rate
 
 
+# -
+
+# Add data specific widgets
 @pn.depends(DataType.param.value)
 def data_widg(d):
     if d == 'rs fMRI':
@@ -242,9 +291,11 @@ def data_widg(d):
 # ***
 # ## Plotting Function
 
+# Plotting function using t-SNE
 @pn.depends(DataType.param.value, Perplexity.param.value, LearningRate.param.value, rs_fMRI_SubjSelect.param.value, rs_fMRI_RunSelect.param.value,
             rs_fMRI_WindowSelect.param.value, task_fMRI_SubjSelect.param.value, task_fMRI_PureSelect.param.value, task_fMRI_WindowSelect.param.value)
 def TSNE_3D_plot(d, p, l, rs_SBJ, rs_RUN, rs_WL_sec, task_SBJ, task_PURE, task_WL_sec):
+    # Load data and data labels based on selected data
     if d == 'Digits':
         data_df  = dig_img_df
         label_df = dig_lab_df
