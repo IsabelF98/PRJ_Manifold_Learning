@@ -71,6 +71,29 @@ fash_lab_full_df = np.load(fashion_path+'/test_labels.npy') # Load test labels
 fash_img_df = pd.DataFrame(fash_img_full_df.reshape((fash_img_full_df.shape[0], 784)))[0:1000] # Flatten image matricies and convert images array to pandas df
 fash_lab_df = pd.DataFrame(fash_lab_full_df)[0:1000] # Convert lables array to pandas df
 
+# Chnage fashion labels by name not number
+for i in range(0,fash_lab_df.shape[0]):
+    if fash_lab_df.loc[i, 0] == 0:
+        fash_lab_df.loc[i, 0] = 'T-shirt/Top'
+    elif fash_lab_df.loc[i, 0] == 1:
+        fash_lab_df.loc[i, 0] = 'Trouser'
+    elif fash_lab_df.loc[i, 0] == 2:
+        fash_lab_df.loc[i, 0] = 'Pullover'
+    elif fash_lab_df.loc[i, 0] == 3:
+        fash_lab_df.loc[i, 0] = 'Dress'
+    elif fash_lab_df.loc[i, 0] == 4:
+        fash_lab_df.loc[i, 0] = 'Coat'
+    elif fash_lab_df.loc[i, 0] == 5:
+        fash_lab_df.loc[i, 0] = 'Sandal'
+    elif fash_lab_df.loc[i, 0] == 6:
+        fash_lab_df.loc[i, 0] = 'Shirt'
+    elif fash_lab_df.loc[i, 0] == 7:
+        fash_lab_df.loc[i, 0] = 'Sneaker'
+    elif fash_lab_df.loc[i, 0] == 8:
+        fash_lab_df.loc[i, 0] = 'Bag'
+    elif fash_lab_df.loc[i, 0] == 9:
+        fash_lab_df.loc[i, 0] = 'Ankle Boot'
+
 print('++ INFO: Digits data frame dimension ',fash_img_df.shape)
 # -
 
@@ -184,6 +207,29 @@ def load_rsfMRI_data(SBJ, RUN, WL_sec):
     return data_df, label_df
 
 
+# +
+# Player to display points over time in rs fMRI data
+# Function gets number of time points for each run
+@pn.depends(rs_fMRI_SubjSelect.param.value, rs_fMRI_RunSelect.param.value, rs_fMRI_WindowSelect.param.value)
+def get_num_tp(SBJ,RUN,WL_sec):
+    data_df, label_df = load_rsfMRI_data(SBJ,RUN,WL_sec)
+    value = data_df.shape[0]
+    return value
+
+# Window player over time
+rs_player = pn.widgets.Player(name='Player', start=0, end=get_num_tp(rs_fMRI_SubjSelect.value, rs_fMRI_RunSelect.value, rs_fMRI_WindowSelect.value),
+                           value=get_num_tp(rs_fMRI_SubjSelect.value, rs_fMRI_RunSelect.value ,rs_fMRI_WindowSelect.value), loop_policy='loop', width=800, step=1)
+
+# Function updates player range based on run selected
+@pn.depends(rs_fMRI_SubjSelect, rs_fMRI_RunSelect, rs_fMRI_WindowSelect, watch=True)
+def update_player(SBJ,RUN,WL_sec):
+    end_value = get_num_tp(SBJ,RUN,WL_sec) # Get number of time points from get_num_tp() function
+    rs_player.value = end_value # Update player value to last player value or new end value
+    rs_player.end = end_value # Update end value
+
+
+# -
+
 # ***
 # ## Task fMRI
 
@@ -280,7 +326,7 @@ LearningRate = pn.widgets.Select(name='Select Learning Rate', options=l_list, va
 @pn.depends(DataType.param.value)
 def data_widg(d):
     if d == 'rs fMRI':
-        panel = pn.Row(rs_fMRI_SubjSelect, rs_fMRI_RunSelect, rs_fMRI_WindowSelect)
+        panel = pn.Column(pn.Row(rs_fMRI_SubjSelect, rs_fMRI_RunSelect, rs_fMRI_WindowSelect), rs_player)
     elif d == 'task fMRI':
         panel = pn.Row(task_fMRI_SubjSelect, task_fMRI_PureSelect, task_fMRI_WindowSelect)
     else:
@@ -293,28 +339,54 @@ def data_widg(d):
 
 # Plotting function using t-SNE
 @pn.depends(DataType.param.value, Perplexity.param.value, LearningRate.param.value, rs_fMRI_SubjSelect.param.value, rs_fMRI_RunSelect.param.value,
-            rs_fMRI_WindowSelect.param.value, task_fMRI_SubjSelect.param.value, task_fMRI_PureSelect.param.value, task_fMRI_WindowSelect.param.value)
-def TSNE_3D_plot(d, p, l, rs_SBJ, rs_RUN, rs_WL_sec, task_SBJ, task_PURE, task_WL_sec):
+            rs_fMRI_WindowSelect.param.value, task_fMRI_SubjSelect.param.value, task_fMRI_PureSelect.param.value, task_fMRI_WindowSelect.param.value,
+            rs_player.param.value)
+def TSNE_3D_plot(d, p, l, rs_SBJ, rs_RUN, rs_WL_sec, task_SBJ, task_PURE, task_WL_sec, rs_max_win):
     # Load data and data labels based on selected data
     if d == 'Digits':
         data_df  = dig_img_df
         label_df = dig_lab_df
+        cmap = {'0': 'rgb(102, 197, 204)',
+                '1': 'rgb(246, 207, 113)',
+                '2': 'rgb(248, 156, 116)',
+                '3': 'rgb(220, 176, 242)',
+                '4': 'rgb(135, 197, 95)',
+                '5': 'rgb(158, 185, 243)',
+                '6': 'rgb(254, 136, 177)',
+                '7': 'rgb(201, 219, 116)',
+                '8': 'rgb(139, 224, 164)',
+                '9': 'rgb(180, 151, 231)'} # Color map for digits
     elif d == 'Fashion':
         data_df  = fash_img_df
         label_df = fash_lab_df
+        cmap = {'T-shirt/Top': 'rgb(95, 70, 144)',
+                'Trouser': 'rgb(29, 105, 150)',
+                'Pullover': 'rgb(56, 166, 165)',
+                'Dress': 'rgb(15, 133, 84)',
+                'Coat': 'rgb(115, 175, 72)',
+                'Sandal': 'rgb(237, 173, 8)',
+                'Shirt': 'rgb(225, 124, 5)',
+                'Sneaker': 'rgb(204, 80, 62)',
+                'Bag': 'rgb(148, 52, 110)',
+                'Ankel Boot': 'rgb(111, 64, 112)'} # Color map for fashion
     elif d == 'rs fMRI':
         data_df, label_df = load_rsfMRI_data(rs_SBJ, rs_RUN, rs_WL_sec)
+        cmap = {'Wake':'orange', 'Stage 1':'yellow', 'Stage 2':'green', 'Stage 3':'blue', 'Undetermined':'gray'} # Color key for sleep stages
     elif d == 'task fMRI':
         data_df, label_df = load_taskfMRI_data(task_SBJ, task_PURE, task_WL_sec)
+        cmap = {'Rest': 'gray', 'Memory': 'blue', 'Video': 'yellow', 'Math': 'green', 'Inbetween': 'black'} # Color key for tasks
     
-    data_transformed = TSNE(n_components=3, perplexity=p, learning_rate=l).fit_transform(data_df) # Apply TSNE to transform data to 3D
+    data_transformed = TSNE(n_components=3, perplexity=p, learning_rate=l, n_jobs=-1).fit_transform(data_df) # Apply TSNE to transform data to 3D
     
     plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
     plot_input['Label'] = label_df.astype(str) # Add column of number identifier with elements as type string
     
     # Created 3D scatter plot of embedded data and color by label
-    plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Label', width=700, height=600, opacity=0.7)
-    plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)), hovertemplate=["idx: "+str(x) for x in plot_input.index])
+    if d == 'rs fMRI': # For rs fMRI data only display points up to window determined by player
+        plot = px.scatter_3d(plot_input[0:rs_max_win], x='x', y='y', z='z', color='Label', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+    else: # For all other data sets display all points
+        plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Label', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+    plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
     
     return plot
 
