@@ -382,14 +382,18 @@ def TSNE_3D_plot(d, p, l, rs_SBJ, rs_RUN, rs_WL_sec, task_SBJ, task_PURE, task_W
     # Created 3D scatter plot of embedded data and color by label
     if d == 'rs fMRI': # For rs fMRI data only display points up to window determined by player
         plot = px.scatter_3d(plot_input[0:rs_max_win], x='x', y='y', z='z', color='Label', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+        plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
+        sleep_plot = hv.Curve(label_df, vdims=['Sleep Stage']).opts(width=600, height=150) # Line plot of sleep stage
+        dash = pn.Row(plot,sleep_plot)
     else: # For all other data sets display all points
         plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Label', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
-    plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
+        plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
+        dash = plot
     
-    return plot
+    return dash
 
 
-dash = pn.Column(pn.Row(DataType, Perplexity, LearningRate), data_widg, TSNE_3D_plot) # Create embedding dashboard
+dash = pn.Column(pn.pane.Markdown("## t-SNE"),pn.Row(DataType, Perplexity, LearningRate), data_widg, TSNE_3D_plot) # Create embedding dashboard
 
 dash_server = dash.show(port=port_tunnel, open=False) # Run dashboard and create link
 
