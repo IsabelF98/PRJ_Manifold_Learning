@@ -394,7 +394,7 @@ def TSNE_3D_plot(d, k, eigen_solver, rs_SBJ, rs_RUN, rs_WL_sec, task_SBJ, task_P
     return dash
 
 
-dash = pn.Column(pn.pane.Markdown("## Laplacian Eignemap"),pn.Row(DataType, kSelect, EigenSelect), data_widg, TSNE_3D_plot) # Create embedding dashboard
+dash = pn.Column(pn.pane.Markdown("## Laplacian Eigenmap"),pn.Row(DataType, kSelect, EigenSelect), data_widg, TSNE_3D_plot) # Create embedding dashboard
 
 dash_server = dash.show(port=port_tunnel, open=False) # Run dashboard and create link
 
