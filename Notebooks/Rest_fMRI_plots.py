@@ -234,10 +234,8 @@ def embeddings(SBJ,WL_sec,PER,k):
     return LE_plot
 
 
-pn.Column(pn.Row(SubjSelect, WindowSelect, kSelect, PercentSelect), embeddings)
+dash = pn.Column(pn.Row(SubjSelect, WindowSelect, kSelect, PercentSelect), embeddings)
 
-SBJ = 'sub-S07'
-WL_sec = 30
-PER = 0.3
-k = 50
-embeddings(SBJ,WL_sec,PER,k)
+dash_server = dash.show(port=port_tunnel, open=False) # Run dashboard and create link
+
+dash_server.stop() # Stop dashboard link
