@@ -17,8 +17,7 @@
 #
 # This notbook is desighned to look at the resting state data to determine why run specific information remains in the data following pre processing. The three plots that are to be computed are:
 # 1. A carpet plot of the raw ROI data before SWC
-# 2. A SWC matrix of the data without PCA
-# 3. A SWC matrix of the data with PCA
+# 2. A SWC matrix of the data with PCA
 #
 # Isabel Fernandez 05/28/2021
 
@@ -68,7 +67,6 @@ SubjSelect = pn.widgets.Select(name='Select Subject', options=SubjectList, value
 WindowSelect = pn.widgets.Select(name='Select Window Length (in seconds)', options=[30,46,60], width=200) # Select window lenght
 
 
-# +
 def load_data(SBJ,WL_sec):
     WL_trs = int(WL_sec/2) # Window length in TR's
     WS_trs = 1 # Window spaces (1 TR)
@@ -79,28 +77,6 @@ def load_data(SBJ,WL_sec):
     ts_df   = pd.read_csv(ts_path, sep='\t', header=None) # Read data as pandas dataframe
     Nacq,Nrois = ts_df.shape # Save number of time points and number of ROI's
     roi_names  = ['ROI'+str(r+1).zfill(3) for r in range(Nrois)] # ROI names (should eventually be actual names)
-    
-#    # Compute SWC without PCA
-#    # -----------------------
-#    winInfo = {'durInTR':int(WL_trs),'stepInTR':int(WS_trs)} # Create window information
-#    winInfo['numWins']   = int(np.ceil((Nacq-(winInfo['durInTR']-1))/winInfo['stepInTR'])) # Computer number of windows
-#    winInfo['onsetTRs']  = np.linspace(0,winInfo['numWins'],winInfo['numWins']+1, dtype='int')[0:winInfo['numWins']] # Compute window onsets
-#    winInfo['offsetTRs'] = winInfo['onsetTRs'] + winInfo['durInTR'] # Compute window offsets
-#    winInfo['winNames']  = ['W'+str(i).zfill(4) for i in range(winInfo['numWins'])] # Create window names
-#    window = np.ones((WL_trs,)) # Create boxcar window
-#    # Compute SWC Matrix
-#    for w in range(winInfo['numWins']):
-#        aux_ts          = ts_df[winInfo['onsetTRs'][w]:winInfo['offsetTRs'][w]]
-#        aux_ts_windowed = aux_ts.mul(window,axis=0)
-#        aux_fc          = aux_ts_windowed.corr()
-#        sel             = np.triu(np.ones(aux_fc.shape),1).astype(np.bool)
-#        aux_fc_v        = aux_fc.where(sel)
-#        if w == 0:
-#            swc_r  = pd.DataFrame(aux_fc_v.T.stack().rename(winInfo['winNames'][w]))
-#        else:
-#            new_df = pd.DataFrame(aux_fc_v.T.stack().rename(winInfo['winNames'][w]))
-#            swc_r  = pd.concat([swc_r,new_df],axis=1)
-#    SWC_wo_PCA = swc_r.apply(np.arctanh)
     
     # Load SWC with PCA (already computed)
     # ------------------------------------
@@ -154,7 +130,8 @@ def load_data(SBJ,WL_sec):
     return ts_df, swc_df, run_seg_df, win_run_seg_df
 
 
-# -
+# ***
+# ## Carpet Plots and Matricies
 
 @pn.depends(SubjSelect.param.value, WindowSelect.param.value)
 def plot(SBJ,WL_sec):
@@ -180,7 +157,7 @@ def plot(SBJ,WL_sec):
     
     # SWC plot with PCA
     # -----------------
-    swc_plot = (rasterize(xr.DataArray(swc_df.values.T,dims=['Time [Windows]','Connection']).hvplot.image(cmap='jet')) * 
+    swc_plot = (xr.DataArray(swc_df.values.T,dims=['Time [Windows]','Connection']).hvplot.image(cmap='jet') * 
                 win_run_seg).opts(title='SWC Matrix with PCA', height=300, width=1200, legend_position='right')
     
     plots = pn.Column(ts_plot,swc_plot)
@@ -189,3 +166,78 @@ def plot(SBJ,WL_sec):
 
 
 pn.Column(pn.Row(SubjSelect, WindowSelect), plot)
+
+# ***
+# ## Sorting SWC Data
+
+from seaborn import clustermap
+
+ts_df, swc_df, run_seg_df, win_run_seg_df = load_data('sub-S24',30)
+
+clustermap(swc_df.T, row_cluster=False, col_cluster=True, method='complete', metric='cosine', cmap='RdBu_r')
+
+# ***
+# ## Adding Fake Classifiers to Data
+
+from sklearn.manifold  import SpectralEmbedding
+import plotly.express as px
+pn.extension('plotly')
+
+# +
+k_list  = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300]
+kSelect = pn.widgets.Select(name='Select k Value', options=k_list, value=k_list[7], width=200)
+
+percent_list  = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10]
+PercentSelect = pn.widgets.Select(name='Select Percent', options=percent_list, value=percent_list[0], width=200)
+
+
+# -
+
+@pn.depends(SubjSelect.param.value, WindowSelect.param.value, PercentSelect.param.value, kSelect.param.value)
+def embeddings(SBJ,WL_sec,PER,k):
+    # Load data
+    # ---------
+    ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec)
+    data_df = swc_df.T.reset_index(drop=True).copy()
+    num_win , num_con = data_df.shape # Number of windows and number of connections
+    
+    # Add Fake Data
+    # -------------
+    class_lenght = num_win/4 # Classifier legnths
+    num_rows = int(num_con * (PER/100)) # Number of rows of data to add
+    add_data = np.concatenate([np.repeat(1,class_lenght),2*np.repeat(1,class_lenght),3*np.repeat(1,class_lenght),4*np.repeat(1,class_lenght)]) # Temp data to add
+    for r in range(0,num_rows):
+        add_noise = add_data+0.2*np.random.rand(num_win)
+        data_df   = pd.concat([data_df,pd.DataFrame(add_noise)], axis=1, ignore_index=True)
+    
+    # Classifier key
+    # --------------
+    class_df = pd.DataFrame(index=range(0,num_win), columns=['Class'])
+    class_df.loc[0:class_lenght, 'Class'] = '1'
+    class_df.loc[class_lenght:class_lenght*2, 'Class'] = '2'
+    class_df.loc[class_lenght*2:class_lenght*3, 'Class'] = '3'
+    class_df.loc[class_lenght*3:class_lenght*4, 'Class'] = '4'
+    
+    # Compute Laplacian Eigenmap
+    # --------------------------
+    # 3D embedding transform created using default Euclidean metric
+    embedding = SpectralEmbedding(n_components=3, affinity='nearest_neighbors', n_jobs=-1, eigen_solver='arpack', n_neighbors=k)
+    data_transformed = embedding.fit_transform(data_df) # Transform data using embedding
+    
+    # Plot Embedding
+    # --------------
+    LE_plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
+    LE_plot_input['Class'] = class_df # Add column of number identifier with elements as type string
+    LE_plot = px.scatter_3d(LE_plot_input, x='x', y='y', z='z', color='Class', width=700, height=600, opacity=0.7)
+    LE_plot = LE_plot.update_traces(marker=dict(size=5,line=dict(width=0)))
+    
+    return LE_plot
+
+
+pn.Column(pn.Row(SubjSelect, WindowSelect, kSelect, PercentSelect), embeddings)
+
+SBJ = 'sub-S07'
+WL_sec = 30
+PER = 0.3
+k = 50
+embeddings(SBJ,WL_sec,PER,k)
