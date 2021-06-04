@@ -34,6 +34,9 @@ import holoviews as hv
 from holoviews.operation.datashader import rasterize
 import panel as pn
 from holoviews import dim, opts
+from sklearn.manifold  import SpectralEmbedding
+import plotly.express as px
+pn.extension('plotly')
 hv.extension('bokeh')
 
 # +
@@ -131,7 +134,7 @@ def load_data(SBJ,WL_sec):
 
 
 # ***
-# ## Carpet Plots and Matricies
+# ## Carpet Plots and Matrices
 
 @pn.depends(SubjSelect.param.value, WindowSelect.param.value)
 def plot(SBJ,WL_sec):
@@ -179,10 +182,6 @@ clustermap(swc_df.T, row_cluster=False, col_cluster=True, method='complete', met
 # ***
 # ## Adding Fake Classifiers to Data
 
-from sklearn.manifold  import SpectralEmbedding
-import plotly.express as px
-pn.extension('plotly')
-
 # +
 k_list  = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300]
 kSelect = pn.widgets.Select(name='Select k Value', options=k_list, value=k_list[7], width=200)
@@ -190,11 +189,17 @@ kSelect = pn.widgets.Select(name='Select k Value', options=k_list, value=k_list[
 percent_list  = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10]
 PercentSelect = pn.widgets.Select(name='Select Percent', options=percent_list, value=percent_list[0], width=200)
 
+color_list = ['fake class', 'run']
+ColorSelect = pn.widgets.Select(name='Select Color', options=color_list, value=color_list[0], width=200)
+
 
 # -
 
-@pn.depends(SubjSelect.param.value, WindowSelect.param.value, PercentSelect.param.value, kSelect.param.value)
-def embeddings(SBJ,WL_sec,PER,k):
+@pn.depends(SubjSelect.param.value, WindowSelect.param.value, PercentSelect.param.value, kSelect.param.value, ColorSelect.param.value)
+def embeddings(SBJ,WL_sec,PER,k,COLOR):
+    WL_trs = int(WL_sec/2) # Window length in TR's
+    WS_trs = 1 # Window spaces (1 TR)
+    
     # Load data
     # ---------
     ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec)
@@ -218,6 +223,20 @@ def embeddings(SBJ,WL_sec,PER,k):
     class_df.loc[class_lenght*2:class_lenght*3, 'Class'] = '3'
     class_df.loc[class_lenght*3:class_lenght*4, 'Class'] = '4'
     
+    # Run key
+    # -------
+    run_df = pd.DataFrame(index=range(0,num_win), columns=['Run'])
+    time_list = [SubDict[SBJ][i][1] for i in range(0,len(SubDict[SBJ]))] # List of TR's in each run
+    run_list = [SubDict[SBJ][i][0] for i in range(0,len(SubDict[SBJ]))] # List of runs for that subject
+    
+    x=0
+    for i in range(len(time_list)):
+        run_df.loc[x:(x-1)+time_list[i]-(WL_trs-1), 'Run'] = [run_list[i]]
+        x=x+time_list[i]-(WL_trs-1)
+        if i != len(time_list)-1:
+            run_df.loc[x:(x-1)+(WL_trs-1), 'Run'] = ['Inbetween Runs']
+            x=x+(WL_trs-1)
+    
     # Compute Laplacian Eigenmap
     # --------------------------
     # 3D embedding transform created using default Euclidean metric
@@ -227,14 +246,21 @@ def embeddings(SBJ,WL_sec,PER,k):
     # Plot Embedding
     # --------------
     LE_plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
-    LE_plot_input['Class'] = class_df # Add column of number identifier with elements as type string
-    LE_plot = px.scatter_3d(LE_plot_input, x='x', y='y', z='z', color='Class', width=700, height=600, opacity=0.7)
+    if COLOR == 'fake class':
+        LE_plot_input['Class'] = class_df # Add column of number identifier with elements as type string
+        LE_plot = px.scatter_3d(LE_plot_input, x='x', y='y', z='z', color='Class', width=700, height=600, opacity=0.7)
+    else:
+        LE_plot_input['Run'] = run_df
+        color_map = {'SleepAscending':'#DE3163','SleepDescending':'#FF7F50','SleepRSER':'#FFBF00','WakeAscending':'#6495ED',
+                                      'WakeDescending':'#40E0D0','WakeRSER':'#CCCCFF','Inbetween Runs':'gray'}
+        LE_plot = px.scatter_3d(LE_plot_input, x='x', y='y', z='z', color='Run', color_discrete_map=color_map, width=700, height=600, opacity=0.7)
+        
     LE_plot = LE_plot.update_traces(marker=dict(size=5,line=dict(width=0)))
     
     return LE_plot
 
 
-dash = pn.Column(pn.Row(SubjSelect, WindowSelect, kSelect, PercentSelect), embeddings)
+dash = pn.Column(pn.Row(SubjSelect, WindowSelect, kSelect, PercentSelect, ColorSelect), embeddings)
 
 dash_server = dash.show(port=port_tunnel, open=False) # Run dashboard and create link
 
