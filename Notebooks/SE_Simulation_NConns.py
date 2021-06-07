@@ -77,20 +77,30 @@ def plot_data(r1_nc,r2_nc,rx_nc,r1_dur,r2_dur,knn):
     #Create simulated data
     data = create_sym_data(r1_nc,r2_nc,rx_nc,r1_dur,r2_dur)
     #Carpet plot of connectivity
-    swc_plot = data.hvplot.heatmap(cmap='jet',clim=(0,1), 
+    swc_plot = hv.HeatMap(data).opts(cmap='jet',clim=(0,1), 
                                    xticks=[0,r1_dur,r1_dur+r2_dur], xlabel='Time (Windows)',
                                    yticks=[0,r1_nc,r1_nc + r2_nc, r1_nc + r2_nc + rx_nc],ylabel='Connections',
-                                   title='Simulated SWC Matrix', shared_axes=False).opts(toolbar=None)
+                                   title='Simulated SWC Matrix', shared_axes=False, toolbar=None)
+#    swc_plot = data.hvplot.heatmap(cmap='jet',clim=(0,1), 
+#                                   xticks=[0,r1_dur,r1_dur+r2_dur], xlabel='Time (Windows)',
+#                                   yticks=[0,r1_nc,r1_nc + r2_nc, r1_nc + r2_nc + rx_nc],ylabel='Connections',
+#                                   title='Simulated SWC Matrix', shared_axes=False).opts(toolbar=None)
     #Correlation matrix for SCC
     cm = data.corr()
     cm.columns = ['WIN'+str(i+1).zfill(4) for i in np.arange(r1_dur+r2_dur)]
     cm.index   = ['WIN'+str(i+1).zfill(4) for i in np.arange(r1_dur+r2_dur)]
-    cm_plot    = cm.hvplot.heatmap(cmap='RdBu_r',clim=(-1,1), 
+    cm_plot    = hv.HeatMap(cm).opts(cmap='RdBu_r',clim=(-1,1), 
                                    shared_axes=False,
                                    xlabel='Time (Windows)',ylabel='Time (Windows)',
                                    title='Win-2-Win Correlation (Similarity across samples)',
                                    xticks=[0,r1_dur,r1_dur+r2_dur],
                                    yticks=[0,r1_dur,r1_dur+r2_dur])
+#    cm_plot    = cm.hvplot.heatmap(cmap='RdBu_r',clim=(-1,1), 
+#                                   shared_axes=False,
+#                                   xlabel='Time (Windows)',ylabel='Time (Windows)',
+#                                   title='Win-2-Win Correlation (Similarity across samples)',
+#                                   xticks=[0,r1_dur,r1_dur+r2_dur],
+#                                   yticks=[0,r1_dur,r1_dur+r2_dur])
     # Create Embedding
     se = SpectralEmbedding(n_components=2, n_neighbors=knn)
     se.fit(data.T)
@@ -98,10 +108,14 @@ def plot_data(r1_nc,r2_nc,rx_nc,r1_dur,r2_dur,knn):
     se_df.columns               = ['x','y']
     se_df['class']              = 'Run 2'
     se_df.loc[0:r1_dur,'class'] = 'Run 1'
-    se_plot                     = se_df.hvplot.scatter(x='x',y='y',color='class',
-                                                      title='Spectral Embedding',
-                                                      xlabel='SE Dim 1',
-                                                      ylabel='SE Dim 2')
+    se_plot                     = hv.Scatter(se_df, vdims=['y','class']).opts(color='class',
+                                                                              title='Spectral Embedding',
+                                                                              xlabel='SE Dim 1',
+                                                                              ylabel='SE Dim 2')
+#    se_plot                     = se_df.hvplot.scatter(x='x',y='y',color='class',
+#                                                      title='Spectral Embedding',
+#                                                      xlabel='SE Dim 1',
+#                                                      ylabel='SE Dim 2')
     return (swc_plot+cm_plot+se_plot).cols(1)
 
 
