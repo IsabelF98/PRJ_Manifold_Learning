@@ -171,15 +171,6 @@ def plot(SBJ,WL_sec):
 pn.Column(pn.Row(SubjSelect, WindowSelect), plot)
 
 # ***
-# ## Sorting SWC Data
-
-from seaborn import clustermap
-
-ts_df, swc_df, run_seg_df, win_run_seg_df = load_data('sub-S24',30)
-
-clustermap(swc_df.T, row_cluster=False, col_cluster=True, method='complete', metric='cosine', cmap='RdBu_r')
-
-# ***
 # ## Adding Fake Classifiers to Data
 
 # +
@@ -200,28 +191,33 @@ def embeddings(SBJ,WL_sec,PER,k,COLOR):
     WL_trs = int(WL_sec/2) # Window length in TR's
     WS_trs = 1 # Window spaces (1 TR)
     
-    # Load data
-    # ---------
+    # Load SWC data
+    # -------------
     ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec)
     data_df = swc_df.T.reset_index(drop=True).copy()
     num_win , num_con = data_df.shape # Number of windows and number of connections
     
     # Add Fake Data
     # -------------
-    class_lenght = num_win/4 # Classifier legnths
+    class_length = int(num_win/8) # Classifier legnths
     num_rows = int(num_con * (PER/100)) # Number of rows of data to add
-    add_data = np.concatenate([np.repeat(1,class_lenght),2*np.repeat(1,class_lenght),3*np.repeat(1,class_lenght),4*np.repeat(1,class_lenght)]) # Temp data to add
+    add_data = np.concatenate([np.repeat(-1.5,class_length),np.repeat(-0.5,class_length),np.repeat(-1.5,class_length),np.repeat(1.5,class_length),
+                               np.repeat(0.5,class_length),np.repeat(1.5,class_length),np.repeat(-0.5,class_length),np.repeat(0.5,class_length)]) # Fake data
     for r in range(0,num_rows):
-        add_noise = add_data+0.2*np.random.rand(num_win)
-        data_df   = pd.concat([data_df,pd.DataFrame(add_noise)], axis=1, ignore_index=True)
+        add_noise = add_data+0.7*np.random.rand(num_win) # Add noise to fake data
+        data_df   = pd.concat([data_df,pd.DataFrame(add_noise)], axis=1, ignore_index=True) # Add fake data
     
     # Classifier key
     # --------------
     class_df = pd.DataFrame(index=range(0,num_win), columns=['Class'])
-    class_df.loc[0:class_lenght, 'Class'] = '1'
-    class_df.loc[class_lenght:class_lenght*2, 'Class'] = '2'
-    class_df.loc[class_lenght*2:class_lenght*3, 'Class'] = '3'
-    class_df.loc[class_lenght*3:class_lenght*4, 'Class'] = '4'
+    class_df.loc[0:class_length, 'Class'] = '-1.5'
+    class_df.loc[class_length:class_length*2, 'Class'] = '-0.5'
+    class_df.loc[class_length*2:class_length*3, 'Class'] = '-1.5'
+    class_df.loc[class_length*3:class_length*4, 'Class'] = '1.5'
+    class_df.loc[class_length*4:class_length*5, 'Class'] = '1'
+    class_df.loc[class_length*5:class_length*6, 'Class'] = '1.5'
+    class_df.loc[class_length*6:class_length*7, 'Class'] = '-0.5'
+    class_df.loc[class_length*7:class_length*8, 'Class'] = '1'
     
     # Run key
     # -------
@@ -265,3 +261,50 @@ dash = pn.Column(pn.Row(SubjSelect, WindowSelect, kSelect, PercentSelect, ColorS
 dash_server = dash.show(port=port_tunnel, open=False) # Run dashboard and create link
 
 dash_server.stop() # Stop dashboard link
+
+# ***
+# ## Correlation between run and connection
+
+# +
+SBJ = 'sub-S24'
+WL_sec = 30
+
+# Load SWC data
+# -------------
+ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec)
+data_df = swc_df.T.reset_index(drop=True).copy()
+num_win , num_con = data_df.shape # Number of windows and number of connections
+
+# Add Fake Data
+# -------------
+PER = 10 # Percent of conections are fake
+class_length = int(num_win/4) # Classifier legnths
+num_rows = int(num_con * (PER/100)) # Number of rows of data to add
+print('Number of original connections:',num_con)
+print('Number of connections added:   ',num_rows)
+add_data = np.concatenate([np.repeat(-1.5,class_length),np.repeat(-0.5,class_length),np.repeat(0.5,class_length),np.repeat(1.5,class_length),]) # Fake data
+for r in range(0,num_rows):
+    add_noise = add_data+0.7*np.random.rand(num_win) # Add noise to fake data
+    data_df   = pd.concat([data_df,pd.DataFrame(add_noise)], axis=1, ignore_index=True) # Add fake data
+
+print('Number of totalconnections:    ',data_df.shape[1])
+# -
+
+# Test data
+# ---------
+test_data = np.concatenate([np.repeat(-5,class_length),np.repeat(0,class_length*3)])
+
+# Compute correlation
+# -------------------
+corr_df = pd.DataFrame(index= range(0,1), columns=['Corr_'+str(con).zfill(4) for con in range(0,num_con)])
+for i in range(0,num_con):
+    corrcoef = np.corrcoef(data_df.values[:,i], test_data)[0,1]
+    corr_df['Corr_'+str(i).zfill(4)] = corrcoef
+
+# Plot correlations
+# -----------------
+hv.Curve(corr_df.values[0,:]).opts(width=1000)
+
+hv.Curve(add_data).opts(width=1000)*hv.Curve(test_data).opts(width=1000)
+
+np.corrcoef(add_data, test_data)[0,1]
