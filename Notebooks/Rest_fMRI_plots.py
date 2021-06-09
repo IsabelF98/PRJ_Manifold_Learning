@@ -177,7 +177,7 @@ pn.Column(pn.Row(SubjSelect, WindowSelect), plot)
 k_list  = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300]
 kSelect = pn.widgets.Select(name='Select k Value', options=k_list, value=k_list[7], width=200)
 
-percent_list  = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10]
+percent_list  = [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10]
 PercentSelect = pn.widgets.Select(name='Select Percent', options=percent_list, value=percent_list[0], width=200)
 
 color_list = ['fake class', 'run']
@@ -265,14 +265,16 @@ dash_server.stop() # Stop dashboard link
 # ***
 # ## Correlation between run and connection
 
+# ### Fake Data
+
 # +
 SBJ = 'sub-S24'
 WL_sec = 30
 
 # Load SWC data
 # -------------
-ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec)
-data_df = swc_df.T.reset_index(drop=True).copy()
+ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec) # Load data
+data_df = swc_df.T.reset_index(drop=True).copy() 
 num_win , num_con = data_df.shape # Number of windows and number of connections
 
 # Add Fake Data
@@ -292,19 +294,59 @@ print('Number of totalconnections:    ',data_df.shape[1])
 
 # Test data
 # ---------
-test_data = np.concatenate([np.repeat(-5,class_length),np.repeat(0,class_length*3)])
+test_data = np.concatenate([np.repeat(-5,class_length),np.repeat(0,class_length*3)]) # Fake data to test correlaitons
 
 # Compute correlation
 # -------------------
-corr_df = pd.DataFrame(index= range(0,1), columns=['Corr_'+str(con).zfill(4) for con in range(0,num_con)])
+corr_df = pd.DataFrame(index= range(0,1), columns=['Corr_'+str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
 for i in range(0,num_con):
-    corrcoef = np.corrcoef(data_df.values[:,i], test_data)[0,1]
-    corr_df['Corr_'+str(i).zfill(4)] = corrcoef
+    corrcoef = np.corrcoef(data_df.values[:,i], test_data)[0,1] # Compute correlation between fake test data and connection
+    corr_df['Corr_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
 
 # Plot correlations
 # -----------------
-hv.Curve(corr_df.values[0,:]).opts(width=1000)
+hv.Curve(corr_df.values[0,:]).opts(width=1000) # Plot correlations
 
 hv.Curve(add_data).opts(width=1000)*hv.Curve(test_data).opts(width=1000)
 
 np.corrcoef(add_data, test_data)[0,1]
+
+# ### Run data
+
+# +
+SBJ = 'sub-S26'
+WL_sec = 30
+WL_TRs = int(WL_sec/2)
+
+# Load SWC data
+# -------------
+ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec) # Load data
+data_df = swc_df.T.reset_index(drop=True).copy() 
+num_win , num_con = data_df.shape # Number of windows and number of connections
+
+# Test data
+# ---------
+time_list = [SubDict[SBJ][i][1] for i in range(0,len(SubDict[SBJ]))] # List of all run lenghts in TR's
+run1 = np.concatenate([np.repeat(1,time_list[0]-WL_TRs+1),np.repeat(0,num_win-(time_list[0]-WL_TRs+1))]) # Fake data to test correlaitons
+run2 = np.concatenate([np.repeat(0,time_list[0]),np.repeat(1,time_list[1]-WL_TRs+1),np.repeat(0,num_win-(time_list[1]-WL_TRs+1)-time_list[0])]) # Fake data to test correlaitons
+run3 = np.concatenate([np.repeat(0,time_list[0]+time_list[1]),np.repeat(1,time_list[2]-WL_TRs+1),np.repeat(0,num_win-(time_list[2]-WL_TRs+1)-time_list[0]-time_list[1])]) # Fake data to test correlaitons
+run4 = np.concatenate([np.repeat(0,time_list[0]+time_list[1]+time_list[2]),np.repeat(1,time_list[3]-WL_TRs+1),np.repeat(0,num_win-(time_list[3]-WL_TRs+1)-time_list[0]-time_list[1]-time_list[2])]) # Fake data to test correlaitons
+run5 = np.concatenate([np.repeat(0,num_win-(time_list[4]-WL_TRs+1)-time_list[5]),np.repeat(1,time_list[4]-WL_TRs+1),np.repeat(0,time_list[5])]) # Fake data to test correlaitons
+run6 = np.concatenate([np.repeat(0,num_win-(time_list[5]-WL_TRs+1)),np.repeat(1,time_list[5]-WL_TRs+1)]) # Fake data to test correlaitons
+
+# Compute correlation
+# -------------------
+corr_df = pd.DataFrame(index= range(0,1), columns=['Conn_'+str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
+for i in range(0,num_con):
+    corrcoef = np.corrcoef(data_df.values[:,i], run3)[0,1] # Compute correlation between fake test data and connection
+    corr_df['Conn_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
+# -
+
+sorted_corr_df = corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+
+## Plot correlations
+# -----------------
+hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
+#hv.Points(sorted_corr_df).opts(width=1000) # Plot correlations
+
+hv.Curve(data_df.values[:,768]).opts(width=1000)*hv.Curve(run3).opts(width=1000)
