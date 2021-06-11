@@ -294,7 +294,7 @@ print('Number of totalconnections:    ',data_df.shape[1])
 
 # Test data
 # ---------
-test_data = np.concatenate([np.repeat(-5,class_length),np.repeat(0,class_length*3)]) # Fake data to test correlaitons
+test_data = np.concatenate([np.repeat(1,class_length),np.repeat(0,class_length*3)]) # Fake data to test correlaitons
 
 # Compute correlation
 # -------------------
@@ -303,13 +303,16 @@ for i in range(0,num_con):
     corrcoef = np.corrcoef(data_df.values[:,i], test_data)[0,1] # Compute correlation between fake test data and connection
     corr_df['Corr_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
 
+# Sort data by correlation value
+# ------------------------------
+sorted_corr_df = corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+
 # Plot correlations
 # -----------------
-hv.Curve(corr_df.values[0,:]).opts(width=1000) # Plot correlations
+hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
+#hv.Curve(corr_df.values[0,:]).opts(width=1000) # Plot correlations
 
-hv.Curve(add_data).opts(width=1000)*hv.Curve(test_data).opts(width=1000)
-
-np.corrcoef(add_data, test_data)[0,1]
+hv.Curve(data_df.values[:,-1]).opts(width=1000)*hv.Curve(test_data).opts(width=1000)
 
 # ### Run data
 
@@ -342,11 +345,14 @@ for i in range(0,num_con):
     corr_df['Conn_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
 # -
 
+# Sort data by correlation value
+# ------------------------------
 sorted_corr_df = corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
 
-## Plot correlations
+# Plot correlations
 # -----------------
 hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
-#hv.Points(sorted_corr_df).opts(width=1000) # Plot correlations
 
+# Plot test run and data
+# ----------------------
 hv.Curve(data_df.values[:,768]).opts(width=1000)*hv.Curve(run3).opts(width=1000)
