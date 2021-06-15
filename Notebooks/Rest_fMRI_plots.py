@@ -30,6 +30,7 @@ import numpy as np
 import scipy
 import sklearn
 import hvplot.xarray
+import hvplot.pandas
 import holoviews as hv
 from holoviews.operation.datashader import rasterize
 import panel as pn
@@ -279,7 +280,7 @@ num_win , num_con = data_df.shape # Number of windows and number of connections
 
 # Add Fake Data
 # -------------
-PER = 10 # Percent of conections are fake
+PER = 0.1 # Percent of conections are fake
 class_length = int(num_win/4) # Classifier legnths
 num_rows = int(num_con * (PER/100)) # Number of rows of data to add
 print('Number of original connections:',num_con)
@@ -299,9 +300,11 @@ test_data = np.concatenate([np.repeat(1,class_length),np.repeat(0,class_length*3
 # Compute correlation
 # -------------------
 corr_df = pd.DataFrame(index= range(0,1), columns=['Corr_'+str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
-for i in range(0,num_con):
+for i in range(0,data_df.shape[1]):
     corrcoef = np.corrcoef(data_df.values[:,i], test_data)[0,1] # Compute correlation between fake test data and connection
     corr_df['Corr_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
+
+corr_df.shape
 
 # Sort data by correlation value
 # ------------------------------
@@ -313,6 +316,8 @@ hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=[
 #hv.Curve(corr_df.values[0,:]).opts(width=1000) # Plot correlations
 
 hv.Curve(data_df.values[:,-1]).opts(width=1000)*hv.Curve(test_data).opts(width=1000)
+
+np.corrcoef(data_df.values[:,8256],test_data)
 
 # ### Run data
 
@@ -341,7 +346,7 @@ run6 = np.concatenate([np.repeat(0,num_win-(time_list[5]-WL_TRs+1)),np.repeat(1,
 # -------------------
 corr_df = pd.DataFrame(index= range(0,1), columns=['Conn_'+str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
 for i in range(0,num_con):
-    corrcoef = np.corrcoef(data_df.values[:,i], run3)[0,1] # Compute correlation between fake test data and connection
+    corrcoef = np.corrcoef(data_df.values[:,i], run1)[0,1] # Compute correlation between fake test data and connection
     corr_df['Conn_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
 # -
 
@@ -355,4 +360,15 @@ hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=[
 
 # Plot test run and data
 # ----------------------
-hv.Curve(data_df.values[:,768]).opts(width=1000)*hv.Curve(run3).opts(width=1000)
+hv.Curve(data_df.values[:,2351]).opts(width=1000)*hv.Curve(run1).opts(width=1000)
+
+data_df.columns[2351]
+
+# ### Look at low correlation PCA component
+
+pca_path = osp.join(DATADIR,'PrcsData',SBJ,'D02_Preproc_fMRI','sub-S26_fanaticor_Craddock_T2Level_0200_wl030s_ws002s_SleepAscending_PCA_vk97.5.pca_ts.pkl')
+pca_df = pd.read_pickle(pca_path)
+
+pca_df.head()
+
+pca_df['PC005'].to_csv(osp.join(DATADIR,'PrcsData',SBJ,'D02_Preproc_fMRI','PCA005_ts.1D'),header=None,index=None)
