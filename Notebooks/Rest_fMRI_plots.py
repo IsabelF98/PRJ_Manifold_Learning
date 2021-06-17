@@ -87,6 +87,20 @@ def load_data(SBJ,WL_sec):
     file_name = SBJ+'_fanaticor_Craddock_T2Level_0200_wl'+str(WL_sec).zfill(3)+'s_ws002s_All_PCA_vk97.5.swcorr.pkl' # Data file name
     swc_path  = osp.join(DATADIR,'PrcsData',SBJ,'D02_Preproc_fMRI',file_name) # Path to data
     swc_df    = pd.read_pickle(swc_path) # Read data into pandas data frame
+    num_win , num_con = swc_df.T.shape
+    
+    # Run key
+    # -------
+    run_df = pd.DataFrame(index=range(0,num_win), columns=['Run'])
+    time_list = [SubDict[SBJ][i][1] for i in range(0,len(SubDict[SBJ]))] # List of TR's in each run
+    run_list = [SubDict[SBJ][i][0] for i in range(0,len(SubDict[SBJ]))] # List of runs for that subject
+    x=0
+    for i in range(len(time_list)):
+        run_df.loc[x:(x-1)+time_list[i]-(WL_trs-1), 'Run'] = [run_list[i]]
+        x=x+time_list[i]-(WL_trs-1)
+        if i != len(time_list)-1:
+            run_df.loc[x:(x-1)+(WL_trs-1), 'Run'] = ['Inbetween Runs']
+            x=x+(WL_trs-1)
     
     # Load run segments
     # -----------------
@@ -131,7 +145,7 @@ def load_data(SBJ,WL_sec):
     win_run_seg_df['start_event'] = -5
     win_run_seg_df['end_event']   = -5
     
-    return ts_df, swc_df, run_seg_df, win_run_seg_df
+    return ts_df, swc_df, run_seg_df, win_run_seg_df, run_df
 
 
 # ***
@@ -141,7 +155,7 @@ def load_data(SBJ,WL_sec):
 def plot(SBJ,WL_sec):
     # Load data
     # ---------
-    ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec)
+    ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data(SBJ,WL_sec)
     
     # Run segments plot
     # -----------------
@@ -194,7 +208,7 @@ def embeddings(SBJ,WL_sec,PER,k,COLOR):
     
     # Load SWC data
     # -------------
-    ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec)
+    ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data(SBJ,WL_sec)
     data_df = swc_df.T.reset_index(drop=True).copy()
     num_win , num_con = data_df.shape # Number of windows and number of connections
     
@@ -219,20 +233,6 @@ def embeddings(SBJ,WL_sec,PER,k,COLOR):
     class_df.loc[class_length*5:class_length*6, 'Class'] = '1.5'
     class_df.loc[class_length*6:class_length*7, 'Class'] = '-0.5'
     class_df.loc[class_length*7:class_length*8, 'Class'] = '1'
-    
-    # Run key
-    # -------
-    run_df = pd.DataFrame(index=range(0,num_win), columns=['Run'])
-    time_list = [SubDict[SBJ][i][1] for i in range(0,len(SubDict[SBJ]))] # List of TR's in each run
-    run_list = [SubDict[SBJ][i][0] for i in range(0,len(SubDict[SBJ]))] # List of runs for that subject
-    
-    x=0
-    for i in range(len(time_list)):
-        run_df.loc[x:(x-1)+time_list[i]-(WL_trs-1), 'Run'] = [run_list[i]]
-        x=x+time_list[i]-(WL_trs-1)
-        if i != len(time_list)-1:
-            run_df.loc[x:(x-1)+(WL_trs-1), 'Run'] = ['Inbetween Runs']
-            x=x+(WL_trs-1)
     
     # Compute Laplacian Eigenmap
     # --------------------------
@@ -274,7 +274,7 @@ WL_sec = 30
 
 # Load SWC data
 # -------------
-ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec) # Load data
+ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data(SBJ,WL_sec) # Load data
 data_df = swc_df.T.reset_index(drop=True).copy() 
 num_win , num_con = data_df.shape # Number of windows and number of connections
 
@@ -300,10 +300,9 @@ test_data = np.concatenate([np.repeat(1,class_length),np.repeat(0,class_length*3
 # Compute correlation
 # -------------------
 corr_df = pd.DataFrame(index= range(0,1), columns=['Corr_'+str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
-for i in range(0,data_df.shape[1]):
+for i in range(0,num_con+num_rows):
     corrcoef = np.corrcoef(data_df.values[:,i], test_data)[0,1] # Compute correlation between fake test data and connection
     corr_df['Corr_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
-
 corr_df.shape
 
 # Sort data by correlation value
@@ -319,7 +318,7 @@ hv.Curve(data_df.values[:,-1]).opts(width=1000)*hv.Curve(test_data).opts(width=1
 
 np.corrcoef(data_df.values[:,8256],test_data)
 
-# ### Run data
+# ### Across run SWC data w/ PCA
 
 # +
 SBJ = 'sub-S26'
@@ -328,7 +327,7 @@ WL_TRs = int(WL_sec/2)
 
 # Load SWC data
 # -------------
-ts_df, swc_df, run_seg_df, win_run_seg_df = load_data(SBJ,WL_sec) # Load data
+ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data(SBJ,WL_sec) # Load data
 data_df = swc_df.T.reset_index(drop=True).copy() 
 num_win , num_con = data_df.shape # Number of windows and number of connections
 
@@ -344,25 +343,134 @@ run6 = np.concatenate([np.repeat(0,num_win-(time_list[5]-WL_TRs+1)),np.repeat(1,
 
 # Compute correlation
 # -------------------
-corr_df = pd.DataFrame(index= range(0,1), columns=['Conn_'+str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
-for i in range(0,num_con):
-    corrcoef = np.corrcoef(data_df.values[:,i], run1)[0,1] # Compute correlation between fake test data and connection
-    corr_df['Conn_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
-# -
+def corr_conn(data_df,test_run):
+    corr_df = pd.DataFrame(index= range(0,1), columns=[str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
+    for i in range(0,num_con):
+        corrcoef = np.corrcoef(data_df.values[:,i], test_run)[0,1] # Compute correlation between fake test data and connection
+        corr_df[str(i).zfill(4)] = corrcoef # Add correalation value to data frame
+    return corr_df
 
+run1_corr_df = corr_conn(data_df,run1)
+run2_corr_df = corr_conn(data_df,run2)
+run3_corr_df = corr_conn(data_df,run3)
+run4_corr_df = corr_conn(data_df,run4)
+run5_corr_df = corr_conn(data_df,run5)
+run6_corr_df = corr_conn(data_df,run6)
+
+# +
 # Sort data by correlation value
 # ------------------------------
-sorted_corr_df = corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run1_sorted_corr_df = run1_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run2_sorted_corr_df = run2_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run3_sorted_corr_df = run3_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run4_sorted_corr_df = run4_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run5_sorted_corr_df = run5_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run6_sorted_corr_df = run6_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+
+to_remove = 400 # Number of connections to remove
+
+# Top and bottom correlations for each run
+# ----------------------------------------
+run1_lowcorr_df  = run1_sorted_corr_df[0:to_remove].copy()
+run1_highcorr_df = run1_sorted_corr_df[-to_remove:].copy()
+
+run2_lowcorr_df  = run2_sorted_corr_df[0:to_remove].copy()
+run2_highcorr_df = run2_sorted_corr_df[-to_remove:].copy()
+
+run3_lowcorr_df  = run3_sorted_corr_df[0:to_remove].copy()
+run3_highcorr_df = run3_sorted_corr_df[-to_remove:].copy()
+
+run4_lowcorr_df  = run4_sorted_corr_df[0:to_remove].copy()
+run4_highcorr_df = run4_sorted_corr_df[-to_remove:].copy()
+
+run5_lowcorr_df  = run5_sorted_corr_df[0:to_remove].copy()
+run5_highcorr_df = run5_sorted_corr_df[-to_remove:].copy()
+
+run6_lowcorr_df  = run6_sorted_corr_df[0:to_remove].copy()
+run6_highcorr_df = run6_sorted_corr_df[-to_remove:].copy()
+# -
 
 # Plot correlations
 # -----------------
-hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
+hv.Scatter(run6_sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover']) *\
+hv.VLine(400) * hv.VLine(run3_sorted_corr_df.shape[0]-400) * hv.HLine(0)
+
+# +
+corr_list = run1_sorted_corr_df[0:10]['Connection'].to_list() + run1_sorted_corr_df[-10:]['Connection'].to_list()
+
+corr_list = run1_sorted_corr_df[4500:4520]['Connection'].to_list()
+
+corr_list = list(map(int, corr_list)) # Elements change to int type
+
+pd.DataFrame(data_df.values[:,corr_list]).hvplot(width=1500)
+# -
 
 # Plot test run and data
 # ----------------------
-hv.Curve(data_df.values[:,2351]).opts(width=1000)*hv.Curve(run1).opts(width=1000)
+hv.Curve(data_df.values[:,4694]).opts(width=1000)*hv.Curve(run1).opts(width=1000)
 
-data_df.columns[2351]
+# +
+# Connections to remove
+# ---------------------
+remove_conn = (run1_sorted_corr_df[0:to_remove]['Connection'].to_list() + run1_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run2_sorted_corr_df[0:to_remove]['Connection'].to_list() + run2_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run3_sorted_corr_df[0:to_remove]['Connection'].to_list() + run3_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run4_sorted_corr_df[0:to_remove]['Connection'].to_list() + run4_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run5_sorted_corr_df[0:to_remove]['Connection'].to_list() + run5_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run6_sorted_corr_df[0:to_remove]['Connection'].to_list() + run6_sorted_corr_df[-to_remove:]['Connection'].to_list())
+print('Number of connections to remove:       ', len(remove_conn))
+remove_conn = list(set(remove_conn)) # Only unique conections
+remove_conn = list(map(int, remove_conn)) # Elements change to int type
+to_drop = []
+for conn in remove_conn:
+    column  = data_df.columns[conn]
+    to_drop.append(column)
+print('Number of unique connections to remove:', len(to_drop))
+print(' ')
+
+# Remove connection with high and low correlations
+# ------------------------------------------------
+dropped_data_df = data_df.copy()
+print('Original shape of data:', dropped_data_df.shape)
+dropped_data_df = dropped_data_df.drop(to_drop, axis=1)
+print('New shape of data:     ', dropped_data_df.shape)
+
+# +
+# Compute LE with droped data
+# ---------------------------
+embedding = SpectralEmbedding(n_components=3, affinity='nearest_neighbors', n_jobs=-1, eigen_solver='arpack', n_neighbors=70)
+data_transformed = embedding.fit_transform(dropped_data_df) # Transform data using embedding
+
+plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
+plot_input['Run'] = run_df # Add column of number identifier with elements as type string
+
+cmap = {'SleepAscending':'#DE3163','SleepDescending':'#FF7F50','SleepRSER':'#FFBF00','WakeAscending':'#6495ED',
+        'WakeDescending':'#40E0D0','WakeRSER':'#CCCCFF','Inbetween Runs':'gray'}
+
+plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Run', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
+
+plot
+
+# +
+# Roemove random connections
+# --------------------------
+test_df = data_df.T.sample(5502).T
+
+embedding = SpectralEmbedding(n_components=3, affinity='nearest_neighbors', n_jobs=-1, eigen_solver='arpack', n_neighbors=70)
+data_transformed = embedding.fit_transform(test_df) # Transform data using embedding
+
+plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
+plot_input['Run'] = run_df # Add column of number identifier with elements as type string
+
+cmap = {'SleepAscending':'#DE3163','SleepDescending':'#FF7F50','SleepRSER':'#FFBF00','WakeAscending':'#6495ED',
+        'WakeDescending':'#40E0D0','WakeRSER':'#CCCCFF','Inbetween Runs':'gray'}
+
+plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Run', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
+
+plot
+# -
 
 # ### Look at low correlation PCA component
 
@@ -372,3 +480,189 @@ pca_df = pd.read_pickle(pca_path)
 pca_df.head()
 
 pca_df['PC005'].to_csv(osp.join(DATADIR,'PrcsData',SBJ,'D02_Preproc_fMRI','PCA005_ts.1D'),header=None,index=None)
+
+# ### Across run SWC data w/o PCA
+
+# +
+SBJ = 'sub-S26'
+WL_sec = 30
+
+WL_trs = int(WL_sec/2) # Window length in TR's
+WS_trs = 1 # Window spaces (1 TR)
+
+# Load raw ROI time series data
+# -----------------------------
+ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data(SBJ,WL_sec) # Load data
+Nacq,Nrois = ts_df.shape # Save number of time points and number of ROI's
+roi_names  = ['ROI'+str(r+1).zfill(3) for r in range(Nrois)] # ROI names (should eventually be actual names)
+
+# Compute SWC without PCA
+# -----------------------
+winInfo = {'durInTR':int(WL_trs),'stepInTR':int(WS_trs)} # Create window information
+winInfo['numWins']   = int(np.ceil((Nacq-(winInfo['durInTR']-1))/winInfo['stepInTR'])) # Computer number of windows
+winInfo['onsetTRs']  = np.linspace(0,winInfo['numWins'],winInfo['numWins']+1, dtype='int')[0:winInfo['numWins']] # Compute window onsets
+winInfo['offsetTRs'] = winInfo['onsetTRs'] + winInfo['durInTR'] # Compute window offsets
+winInfo['winNames']  = ['W'+str(i).zfill(4) for i in range(winInfo['numWins'])] # Create window names
+window = np.ones((WL_trs,)) # Create boxcar window
+# Compute SWC Matrix
+for w in range(winInfo['numWins']):
+    aux_ts          = ts_df[winInfo['onsetTRs'][w]:winInfo['offsetTRs'][w]]
+    aux_ts_windowed = aux_ts.mul(window,axis=0)
+    aux_fc          = aux_ts_windowed.corr()
+    sel             = np.triu(np.ones(aux_fc.shape),1).astype(np.bool)
+    aux_fc_v        = aux_fc.where(sel)
+    if w == 0:
+        swc_r  = pd.DataFrame(aux_fc_v.T.stack().rename(winInfo['winNames'][w]))
+    else:
+        new_df = pd.DataFrame(aux_fc_v.T.stack().rename(winInfo['winNames'][w]))
+        swc_r  = pd.concat([swc_r,new_df],axis=1)
+SWC_df = swc_r.apply(np.arctanh)
+
+# +
+WL_TRs = int(WL_sec/2)
+data_df = SWC_df.T.reset_index(drop=True).copy() 
+num_win , num_con = data_df.shape # Number of windows and number of connections
+
+# Test data
+# ---------
+time_list = [SubDict[SBJ][i][1] for i in range(0,len(SubDict[SBJ]))] # List of all run lenghts in TR's
+run1 = np.concatenate([np.repeat(1,time_list[0]-WL_TRs+1),np.repeat(0,num_win-(time_list[0]-WL_TRs+1))]) # Fake data to test correlaitons
+run2 = np.concatenate([np.repeat(0,time_list[0]),np.repeat(1,time_list[1]-WL_TRs+1),np.repeat(0,num_win-(time_list[1]-WL_TRs+1)-time_list[0])]) # Fake data to test correlaitons
+run3 = np.concatenate([np.repeat(0,time_list[0]+time_list[1]),np.repeat(1,time_list[2]-WL_TRs+1),np.repeat(0,num_win-(time_list[2]-WL_TRs+1)-time_list[0]-time_list[1])]) # Fake data to test correlaitons
+run4 = np.concatenate([np.repeat(0,time_list[0]+time_list[1]+time_list[2]),np.repeat(1,time_list[3]-WL_TRs+1),np.repeat(0,num_win-(time_list[3]-WL_TRs+1)-time_list[0]-time_list[1]-time_list[2])]) # Fake data to test correlaitons
+run5 = np.concatenate([np.repeat(0,num_win-(time_list[4]-WL_TRs+1)-time_list[5]),np.repeat(1,time_list[4]-WL_TRs+1),np.repeat(0,time_list[5])]) # Fake data to test correlaitons
+run6 = np.concatenate([np.repeat(0,num_win-(time_list[5]-WL_TRs+1)),np.repeat(1,time_list[5]-WL_TRs+1)]) # Fake data to test correlaitons
+
+# Compute correlation
+# -------------------
+def corr_conn(data_df,test_run):
+    corr_df = pd.DataFrame(index= range(0,1), columns=[str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
+    for i in range(0,num_con):
+        corrcoef = np.corrcoef(data_df.values[:,i], test_run)[0,1] # Compute correlation between fake test data and connection
+        corr_df[str(i).zfill(4)] = corrcoef # Add correalation value to data frame
+    return corr_df
+
+run1_corr_df = corr_conn(data_df,run1)
+run2_corr_df = corr_conn(data_df,run2)
+run3_corr_df = corr_conn(data_df,run3)
+run4_corr_df = corr_conn(data_df,run4)
+run5_corr_df = corr_conn(data_df,run5)
+run6_corr_df = corr_conn(data_df,run6)
+# -
+
+# Sort data by correlation value
+# ------------------------------
+run1_sorted_corr_df = run1_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run2_sorted_corr_df = run2_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run3_sorted_corr_df = run3_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run4_sorted_corr_df = run4_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run5_sorted_corr_df = run5_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+run6_sorted_corr_df = run6_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
+
+# Plot correlations
+# -----------------
+hv.Scatter(run1_sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
+
+# +
+# Connections to remove
+# ---------------------
+to_remove = 1000 # Number of connections to remove
+remove_conn = (run1_sorted_corr_df[0:to_remove]['Connection'].to_list() + run1_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run2_sorted_corr_df[0:to_remove]['Connection'].to_list() + run2_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run3_sorted_corr_df[0:to_remove]['Connection'].to_list() + run3_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run4_sorted_corr_df[0:to_remove]['Connection'].to_list() + run4_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run5_sorted_corr_df[0:to_remove]['Connection'].to_list() + run5_sorted_corr_df[-to_remove:]['Connection'].to_list() +
+               run6_sorted_corr_df[0:to_remove]['Connection'].to_list() + run6_sorted_corr_df[-to_remove:]['Connection'].to_list())
+print('Number of connections to remove:       ', len(remove_conn))
+remove_conn = list(set(remove_conn)) # Only unique conections
+remove_conn = list(map(int, remove_conn)) # Elements change to int type
+to_drop = []
+for conn in remove_conn:
+    column  = data_df.columns[conn]
+    to_drop.append(column)
+print('Number of unique connections to remove:', len(to_drop))
+print(' ')
+
+# Remove connection with high and low correlations
+# ------------------------------------------------
+dropped_data_df = data_df.copy()
+print('Original shape of data:', dropped_data_df.shape)
+dropped_data_df = dropped_data_df.drop(to_drop, axis=1)
+print('New shape of data:     ', dropped_data_df.shape)
+# -
+
+# Compute LE
+# ----------
+embedding = SpectralEmbedding(n_components=3, affinity='nearest_neighbors', n_jobs=-1, eigen_solver='arpack', n_neighbors=70)
+data_transformed = embedding.fit_transform(dropped_data_df) # Transform data using embedding
+
+# +
+# Plot embeddings
+# ---------------
+plot_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
+plot_input['Run'] = run_df # Add column of number identifier with elements as type string
+
+cmap = {'SleepAscending':'#DE3163','SleepDescending':'#FF7F50','SleepRSER':'#FFBF00','WakeAscending':'#6495ED',
+        'WakeDescending':'#40E0D0','WakeRSER':'#CCCCFF','Inbetween Runs':'gray'}
+
+plot = px.scatter_3d(plot_input, x='x', y='y', z='z', color='Run', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
+
+plot
+# -
+
+hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
+
+hv.Curve(SWC_df.T.values[:,1450]).opts(width=1000)*hv.HLine(0).opts(line_width=1,line_dash='dashed',line_color='k')*\
+hv.Curve(SWC_df.T.values[:,14180]).opts(width=1000)
+
+# ### Across run TS data
+
+# +
+SBJ = 'sub-S26'
+WL_sec = 30
+
+# Load SWC data
+# -------------
+ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data(SBJ,WL_sec) # Load data
+num_TRs, num_ROIs = ts_df.shape
+
+# Test data
+# ---------
+time_list = [SubDict[SBJ][i][1] for i in range(0,len(SubDict[SBJ]))] # List of all run lenghts in TR's
+run1 = np.concatenate([np.repeat(1,time_list[0]),np.repeat(0,num_TRs-(time_list[0]))]) # Fake data to test correlaitons
+run2 = np.concatenate([np.repeat(0,time_list[0]),np.repeat(1,time_list[1]),np.repeat(0,num_TRs-time_list[1]-time_list[0])]) # Fake data to test correlaitons
+run3 = np.concatenate([np.repeat(0,time_list[0]+time_list[1]),np.repeat(1,time_list[2]),np.repeat(0,num_TRs-time_list[2]-time_list[0]-time_list[1])]) # Fake data to test correlaitons
+run4 = np.concatenate([np.repeat(0,time_list[0]+time_list[1]+time_list[2]),np.repeat(1,time_list[3]),np.repeat(0,num_TRs-time_list[3]-time_list[0]-time_list[1]-time_list[2])]) # Fake data to test correlaitons
+run5 = np.concatenate([np.repeat(0,num_TRs-time_list[4]-time_list[5]),np.repeat(1,time_list[4]),np.repeat(0,time_list[5])]) # Fake data to test correlaitons
+run6 = np.concatenate([np.repeat(0,num_TRs-time_list[5]),np.repeat(1,time_list[5])]) # Fake data to test correlaitons
+
+# Compute correlation
+# -------------------
+def corr_ts(data_df,test_run):
+    corr_df = pd.DataFrame(index= range(0,1), columns=[str(ROI).zfill(3) for ROI in range(0,num_ROIs)]) # Empty correlation data frame
+    for i in range(0,num_ROIs):
+        corrcoef = np.corrcoef(data_df.values[:,i], test_run)[0,1] # Compute correlation between fake test data and connection
+        corr_df[str(i).zfill(3)] = corrcoef # Add correalation value to data frame
+    return corr_df
+
+run1_corr_df = corr_ts(ts_df,run1)
+run2_corr_df = corr_ts(ts_df,run2)
+run3_corr_df = corr_ts(ts_df,run3)
+run4_corr_df = corr_ts(ts_df,run4)
+run5_corr_df = corr_ts(ts_df,run5)
+run6_corr_df = corr_ts(ts_df,run6)
+
+# Sort data by correlation value
+# ------------------------------
+run1_sorted_corr_df = run1_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'ROI', 0:'Correlation'})
+run2_sorted_corr_df = run2_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'ROI', 0:'Correlation'})
+run3_sorted_corr_df = run3_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'ROI', 0:'Correlation'})
+run4_sorted_corr_df = run4_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'ROI', 0:'Correlation'})
+run5_sorted_corr_df = run5_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'ROI', 0:'Correlation'})
+run6_sorted_corr_df = run6_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'ROI', 0:'Correlation'})
+# -
+
+# Plot correlations
+# -----------------
+hv.Scatter(run1_sorted_corr_df, 'ROI', 'Correlation').opts(width=1200, tools=['hover'])
