@@ -486,6 +486,7 @@ pca_df['PC005'].to_csv(osp.join(DATADIR,'PrcsData',SBJ,'D02_Preproc_fMRI','PCA00
 # +
 SBJ = 'sub-S26'
 WL_sec = 30
+WL_TRs = int(WL_sec/2) # Window length in TR's
 
 WL_trs = int(WL_sec/2) # Window length in TR's
 WS_trs = 1 # Window spaces (1 TR)
@@ -517,9 +518,41 @@ for w in range(winInfo['numWins']):
         new_df = pd.DataFrame(aux_fc_v.T.stack().rename(winInfo['winNames'][w]))
         swc_r  = pd.concat([swc_r,new_df],axis=1)
 SWC_df = swc_r.apply(np.arctanh)
+# -
+
+SWC_df.loc[:,SWC_df.columns[0:397]].mean(axis=1).sort_values()
+
+from scipy.stats import zscore
+
+SWC_df_Z = SWC_df.T.apply(zscore).T
+
+pd.DataFrame(SWC_df.loc[(97,87),:].values).hvplot()
+
+embedding = SpectralEmbedding(n_components=3, affinity='nearest_neighbors', n_jobs=-1, eigen_solver='arpack', n_neighbors=70)
+data_transformed = embedding.fit_transform(SWC_df.T) # Transform data using embedding
+Z_data_transformed = embedding.fit_transform(SWC_df_Z.T) # Transform data using embedding
+
+2+3
 
 # +
-WL_TRs = int(WL_sec/2)
+plot1_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
+plot1_input['Run'] = run_df # Add column of number identifier with elements as type string
+
+plot2_input = pd.DataFrame(Z_data_transformed, columns=['x','y','z']) # Change data to pandas data frame
+plot2_input['Run'] = run_df # Add column of number identifier with elements as type string
+
+cmap = {'SleepAscending':'#DE3163','SleepDescending':'#FF7F50','SleepRSER':'#FFBF00','WakeAscending':'#6495ED',
+        'WakeDescending':'#40E0D0','WakeRSER':'#CCCCFF','Inbetween Runs':'gray'}
+
+plot1 = px.scatter_3d(plot1_input, x='x', y='y', z='z', color='Run', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+plot1 = plot1.update_traces(marker=dict(size=5,line=dict(width=0)))
+
+plot2 = px.scatter_3d(plot2_input, x='x', y='y', z='z', color='Run', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
+plot2 = plot2.update_traces(marker=dict(size=5,line=dict(width=0)))
+
+plot1+plot2
+
+# +
 data_df = SWC_df.T.reset_index(drop=True).copy() 
 num_win , num_con = data_df.shape # Number of windows and number of connections
 
@@ -561,7 +594,7 @@ run6_sorted_corr_df = run6_corr_df.T.sort_values(by=0).reset_index().rename(colu
 
 # Plot correlations
 # -----------------
-hv.Scatter(run1_sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
+hv.Scatter(run6_sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
 
 # +
 # Connections to remove
@@ -610,8 +643,6 @@ plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
 
 plot
 # -
-
-hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
 
 hv.Curve(SWC_df.T.values[:,1450]).opts(width=1000)*hv.HLine(0).opts(line_width=1,line_dash='dashed',line_color='k')*\
 hv.Curve(SWC_df.T.values[:,14180]).opts(width=1000)
