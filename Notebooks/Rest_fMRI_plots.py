@@ -16,8 +16,6 @@
 # # Resting State fMRI Data Carpet Plots
 #
 # This notbook is desighned to look at the resting state data to determine why run specific information remains in the data following pre processing. The three plots that are to be computed are:
-# 1. A carpet plot of the raw ROI data before SWC
-# 2. A SWC matrix of the data with PCA
 #
 # Isabel Fernandez 05/28/2021
 
@@ -186,7 +184,7 @@ def plot(SBJ,WL_sec):
 pn.Column(pn.Row(SubjSelect, WindowSelect), plot)
 
 # ***
-# ## Adding Fake Classifiers to Data
+# ## Adding surogate conecctions with knonw temporal structure
 
 # +
 k_list  = [3,4,5,6,7,8,9,10,12,14,16,18,20,25,30,35,40,45,50,60,70,80,90,100,150,200,250,300]
@@ -198,8 +196,36 @@ PercentSelect = pn.widgets.Select(name='Select Percent', options=percent_list, v
 color_list = ['fake class', 'run']
 ColorSelect = pn.widgets.Select(name='Select Color', options=color_list, value=color_list[0], width=200)
 
+# + jupyter={"source_hidden": true}
+PER = 0.5
+# Load SWC data
+# -------------
+ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data('sub-S26',30)
+data_df = swc_df.T.reset_index(drop=True).copy()
+num_win , num_con = data_df.shape # Number of windows and number of connections
+    
+# Add Fake Data
+# -------------
+class_length = int(num_win/8) # Classifier legnths
+num_rows = int(num_con * (PER/100)) # Number of rows of data to add
+add_data = np.concatenate([np.repeat(-1.5,class_length),np.repeat(-0.5,class_length),np.repeat(-1.5,class_length),np.repeat(1.5,class_length),
+                               np.repeat(0.5,class_length),np.repeat(1.5,class_length),np.repeat(-0.5,class_length),np.repeat(0.5,class_length)]) # Fake data
 
+add_noise = add_data+0.7*np.random.rand(num_win) # Add noise to fake data
+data_df   = pd.concat([data_df,pd.DataFrame(add_noise)], axis=1, ignore_index=True) # Add fake data
+
+# + jupyter={"source_hidden": true}
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# + jupyter={"source_hidden": true}
+fig, ax = plt.subplots(1,1,figsize=(20,5))
+a = sns.heatmap(swc_df, cmap='jet', vmin=-2, vmax=2,ax=ax).figure
+pn.Row(pn.pane.Matplotlib(a))
 # -
+
+data_df[data_df.shape[1]-1].hvplot()
+
 
 @pn.depends(SubjSelect.param.value, WindowSelect.param.value, PercentSelect.param.value, kSelect.param.value, ColorSelect.param.value)
 def embeddings(SBJ,WL_sec,PER,k,COLOR):
@@ -254,6 +280,11 @@ def embeddings(SBJ,WL_sec,PER,k,COLOR):
         
     LE_plot = LE_plot.update_traces(marker=dict(size=5,line=dict(width=0)))
     
+    # SWC Matrix Plot
+    # ---------------
+    #fig, ax = plt.subplots(1,1,figsize=(20,5))
+    #a = sns.heatmap(data_df.T, cmap='jet', vmin=-2, vmax=2,ax=ax).figure
+    
     return LE_plot
 
 
@@ -266,7 +297,7 @@ dash_server.stop() # Stop dashboard link
 # ***
 # ## Correlation between run and connection
 
-# ### Fake Data
+# ### Surogate Data
 
 # +
 SBJ = 'sub-S24'
@@ -531,8 +562,6 @@ pd.DataFrame(SWC_df.loc[(97,87),:].values).hvplot()
 embedding = SpectralEmbedding(n_components=3, affinity='nearest_neighbors', n_jobs=-1, eigen_solver='arpack', n_neighbors=70)
 data_transformed = embedding.fit_transform(SWC_df.T) # Transform data using embedding
 Z_data_transformed = embedding.fit_transform(SWC_df_Z.T) # Transform data using embedding
-
-2+3
 
 # +
 plot1_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
