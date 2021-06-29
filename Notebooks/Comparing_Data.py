@@ -19,7 +19,6 @@
 # * Fashion Data
 # * Task fMRI
 # * Rest fMRI
-# * Another
 #
 # For each data set we will observe its corelation matrix, distance matrix, and the distribution of the these matricies.
 #
@@ -203,6 +202,7 @@ pn.Column(fash_CorrRange, fash_plots)
 
 # ***
 # ## Resting State fMRI Data
+# The resting state 3T fMRI data was aquired at Cambridge University and is EEG concurent to destinguish sleep stages. Each subject has 6 runs (depending on subject some have less) and for 3 of the 6 runs subjects were asked to stay awake and for the other 3 the subject was asked to fall asleep. The runs are 10 to 15 min long. Segments that corespond to sleep stages are added to the distance and correlation marticies. The windowlenghts used for computing SWC was 30 seconds, 46 seconds, and 60 seconds.
 
 # +
 # Load rs fMRI subject information as a dictionary
@@ -298,6 +298,7 @@ pn.Column(pn.Row(rs_fMRI_SubjSelect, rs_fMRI_RunSelect, rs_fMRI_WindowSelect), r
 
 # ***
 # ## Multi Task fMRI Data
+# The multi task data was aquired on a 7T scanner. Each subject performed 4 different tasks (math, memory, video, rest) twice throughout the scan in random oreder (never performing the same task back to back). There is only one run per subject. Segments that corespond to task are added to the distance and correlation marticies. The windowlenghts used for computing SWC was 30 seconds and 45 seconds.
 
 # Create widgets for task fMRI data
 # ---------------------------------
