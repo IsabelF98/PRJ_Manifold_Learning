@@ -196,36 +196,8 @@ PercentSelect = pn.widgets.Select(name='Select Percent', options=percent_list, v
 color_list = ['fake class', 'run']
 ColorSelect = pn.widgets.Select(name='Select Color', options=color_list, value=color_list[0], width=200)
 
-# + jupyter={"source_hidden": true}
-PER = 0.5
-# Load SWC data
-# -------------
-ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data('sub-S26',30)
-data_df = swc_df.T.reset_index(drop=True).copy()
-num_win , num_con = data_df.shape # Number of windows and number of connections
-    
-# Add Fake Data
-# -------------
-class_length = int(num_win/8) # Classifier legnths
-num_rows = int(num_con * (PER/100)) # Number of rows of data to add
-add_data = np.concatenate([np.repeat(-1.5,class_length),np.repeat(-0.5,class_length),np.repeat(-1.5,class_length),np.repeat(1.5,class_length),
-                               np.repeat(0.5,class_length),np.repeat(1.5,class_length),np.repeat(-0.5,class_length),np.repeat(0.5,class_length)]) # Fake data
 
-add_noise = add_data+0.7*np.random.rand(num_win) # Add noise to fake data
-data_df   = pd.concat([data_df,pd.DataFrame(add_noise)], axis=1, ignore_index=True) # Add fake data
-
-# + jupyter={"source_hidden": true}
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-# + jupyter={"source_hidden": true}
-fig, ax = plt.subplots(1,1,figsize=(20,5))
-a = sns.heatmap(swc_df, cmap='jet', vmin=-2, vmax=2,ax=ax).figure
-pn.Row(pn.pane.Matplotlib(a))
 # -
-
-data_df[data_df.shape[1]-1].hvplot()
-
 
 @pn.depends(SubjSelect.param.value, WindowSelect.param.value, PercentSelect.param.value, kSelect.param.value, ColorSelect.param.value)
 def embeddings(SBJ,WL_sec,PER,k,COLOR):
@@ -297,58 +269,6 @@ dash_server.stop() # Stop dashboard link
 # ***
 # ## Correlation between run and connection
 
-# ### Surogate Data
-
-# +
-SBJ = 'sub-S24'
-WL_sec = 30
-
-# Load SWC data
-# -------------
-ts_df, swc_df, run_seg_df, win_run_seg_df, run_df = load_data(SBJ,WL_sec) # Load data
-data_df = swc_df.T.reset_index(drop=True).copy() 
-num_win , num_con = data_df.shape # Number of windows and number of connections
-
-# Add Fake Data
-# -------------
-PER = 0.1 # Percent of conections are fake
-class_length = int(num_win/4) # Classifier legnths
-num_rows = int(num_con * (PER/100)) # Number of rows of data to add
-print('Number of original connections:',num_con)
-print('Number of connections added:   ',num_rows)
-add_data = np.concatenate([np.repeat(-1.5,class_length),np.repeat(-0.5,class_length),np.repeat(0.5,class_length),np.repeat(1.5,class_length),]) # Fake data
-for r in range(0,num_rows):
-    add_noise = add_data+0.7*np.random.rand(num_win) # Add noise to fake data
-    data_df   = pd.concat([data_df,pd.DataFrame(add_noise)], axis=1, ignore_index=True) # Add fake data
-
-print('Number of totalconnections:    ',data_df.shape[1])
-# -
-
-# Test data
-# ---------
-test_data = np.concatenate([np.repeat(1,class_length),np.repeat(0,class_length*3)]) # Fake data to test correlaitons
-
-# Compute correlation
-# -------------------
-corr_df = pd.DataFrame(index= range(0,1), columns=['Corr_'+str(con).zfill(4) for con in range(0,num_con)]) # Empty correlation data frame
-for i in range(0,num_con+num_rows):
-    corrcoef = np.corrcoef(data_df.values[:,i], test_data)[0,1] # Compute correlation between fake test data and connection
-    corr_df['Corr_'+str(i).zfill(4)] = corrcoef # Add correalation value to data frame
-corr_df.shape
-
-# Sort data by correlation value
-# ------------------------------
-sorted_corr_df = corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
-
-# Plot correlations
-# -----------------
-hv.Scatter(sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover'])
-#hv.Curve(corr_df.values[0,:]).opts(width=1000) # Plot correlations
-
-hv.Curve(data_df.values[:,-1]).opts(width=1000)*hv.Curve(test_data).opts(width=1000)
-
-np.corrcoef(data_df.values[:,8256],test_data)
-
 # ### Across run SWC data w/ PCA
 
 # +
@@ -387,8 +307,8 @@ run3_corr_df = corr_conn(data_df,run3)
 run4_corr_df = corr_conn(data_df,run4)
 run5_corr_df = corr_conn(data_df,run5)
 run6_corr_df = corr_conn(data_df,run6)
+# -
 
-# +
 # Sort data by correlation value
 # ------------------------------
 run1_sorted_corr_df = run1_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
@@ -398,43 +318,10 @@ run4_sorted_corr_df = run4_corr_df.T.sort_values(by=0).reset_index().rename(colu
 run5_sorted_corr_df = run5_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
 run6_sorted_corr_df = run6_corr_df.T.sort_values(by=0).reset_index().rename(columns={'index':'Connection', 0:'Correlation'})
 
-to_remove = 400 # Number of connections to remove
-
-# Top and bottom correlations for each run
-# ----------------------------------------
-run1_lowcorr_df  = run1_sorted_corr_df[0:to_remove].copy()
-run1_highcorr_df = run1_sorted_corr_df[-to_remove:].copy()
-
-run2_lowcorr_df  = run2_sorted_corr_df[0:to_remove].copy()
-run2_highcorr_df = run2_sorted_corr_df[-to_remove:].copy()
-
-run3_lowcorr_df  = run3_sorted_corr_df[0:to_remove].copy()
-run3_highcorr_df = run3_sorted_corr_df[-to_remove:].copy()
-
-run4_lowcorr_df  = run4_sorted_corr_df[0:to_remove].copy()
-run4_highcorr_df = run4_sorted_corr_df[-to_remove:].copy()
-
-run5_lowcorr_df  = run5_sorted_corr_df[0:to_remove].copy()
-run5_highcorr_df = run5_sorted_corr_df[-to_remove:].copy()
-
-run6_lowcorr_df  = run6_sorted_corr_df[0:to_remove].copy()
-run6_highcorr_df = run6_sorted_corr_df[-to_remove:].copy()
-# -
-
 # Plot correlations
 # -----------------
 hv.Scatter(run6_sorted_corr_df, 'Connection', 'Correlation').opts(width=1200, tools=['hover']) *\
 hv.VLine(400) * hv.VLine(run3_sorted_corr_df.shape[0]-400) * hv.HLine(0)
-
-# +
-corr_list = run1_sorted_corr_df[0:10]['Connection'].to_list() + run1_sorted_corr_df[-10:]['Connection'].to_list()
-
-corr_list = run1_sorted_corr_df[4500:4520]['Connection'].to_list()
-
-corr_list = list(map(int, corr_list)) # Elements change to int type
-
-pd.DataFrame(data_df.values[:,corr_list]).hvplot(width=1500)
-# -
 
 # Plot test run and data
 # ----------------------
@@ -443,6 +330,7 @@ hv.Curve(data_df.values[:,4694]).opts(width=1000)*hv.Curve(run1).opts(width=1000
 # +
 # Connections to remove
 # ---------------------
+to_remove = 400 # Number of connections to remove
 remove_conn = (run1_sorted_corr_df[0:to_remove]['Connection'].to_list() + run1_sorted_corr_df[-to_remove:]['Connection'].to_list() +
                run2_sorted_corr_df[0:to_remove]['Connection'].to_list() + run2_sorted_corr_df[-to_remove:]['Connection'].to_list() +
                run3_sorted_corr_df[0:to_remove]['Connection'].to_list() + run3_sorted_corr_df[-to_remove:]['Connection'].to_list() +
@@ -503,15 +391,6 @@ plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
 plot
 # -
 
-# ### Look at low correlation PCA component
-
-pca_path = osp.join(DATADIR,'PrcsData',SBJ,'D02_Preproc_fMRI','sub-S26_fanaticor_Craddock_T2Level_0200_wl030s_ws002s_SleepAscending_PCA_vk97.5.pca_ts.pkl')
-pca_df = pd.read_pickle(pca_path)
-
-pca_df.head()
-
-pca_df['PC005'].to_csv(osp.join(DATADIR,'PrcsData',SBJ,'D02_Preproc_fMRI','PCA005_ts.1D'),header=None,index=None)
-
 # ### Across run SWC data w/o PCA
 
 # +
@@ -549,37 +428,6 @@ for w in range(winInfo['numWins']):
         new_df = pd.DataFrame(aux_fc_v.T.stack().rename(winInfo['winNames'][w]))
         swc_r  = pd.concat([swc_r,new_df],axis=1)
 SWC_df = swc_r.apply(np.arctanh)
-# -
-
-SWC_df.loc[:,SWC_df.columns[0:397]].mean(axis=1).sort_values()
-
-from scipy.stats import zscore
-
-SWC_df_Z = SWC_df.T.apply(zscore).T
-
-pd.DataFrame(SWC_df.loc[(97,87),:].values).hvplot()
-
-embedding = SpectralEmbedding(n_components=3, affinity='nearest_neighbors', n_jobs=-1, eigen_solver='arpack', n_neighbors=70)
-data_transformed = embedding.fit_transform(SWC_df.T) # Transform data using embedding
-Z_data_transformed = embedding.fit_transform(SWC_df_Z.T) # Transform data using embedding
-
-# +
-plot1_input = pd.DataFrame(data_transformed, columns=['x','y','z']) # Change data to pandas data frame
-plot1_input['Run'] = run_df # Add column of number identifier with elements as type string
-
-plot2_input = pd.DataFrame(Z_data_transformed, columns=['x','y','z']) # Change data to pandas data frame
-plot2_input['Run'] = run_df # Add column of number identifier with elements as type string
-
-cmap = {'SleepAscending':'#DE3163','SleepDescending':'#FF7F50','SleepRSER':'#FFBF00','WakeAscending':'#6495ED',
-        'WakeDescending':'#40E0D0','WakeRSER':'#CCCCFF','Inbetween Runs':'gray'}
-
-plot1 = px.scatter_3d(plot1_input, x='x', y='y', z='z', color='Run', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
-plot1 = plot1.update_traces(marker=dict(size=5,line=dict(width=0)))
-
-plot2 = px.scatter_3d(plot2_input, x='x', y='y', z='z', color='Run', color_discrete_map=cmap, width=700, height=600, opacity=0.7)
-plot2 = plot2.update_traces(marker=dict(size=5,line=dict(width=0)))
-
-plot1+plot2
 
 # +
 data_df = SWC_df.T.reset_index(drop=True).copy() 
@@ -672,9 +520,6 @@ plot = plot.update_traces(marker=dict(size=5,line=dict(width=0)))
 
 plot
 # -
-
-hv.Curve(SWC_df.T.values[:,1450]).opts(width=1000)*hv.HLine(0).opts(line_width=1,line_dash='dashed',line_color='k')*\
-hv.Curve(SWC_df.T.values[:,14180]).opts(width=1000)
 
 # ### Across run TS data
 
