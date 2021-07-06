@@ -24,20 +24,18 @@ import os.path as osp
 import pandas as pd
 import numpy as np
 from scipy.io import loadmat
-import xarray as xr
+import hvplot.pandas
 
 PRJDIR = '/data/SFIMJGC/PRJ_Manifold_Learning' # Project directory path
 
 # ***
 # ## Scikit-Dimension Example
 
-# + jupyter={"source_hidden": true}
 #generate data : np.array (n_points x n_dim). Here a uniformly sampled 5-ball embedded in 10 dimensions
 data = np.zeros((1000,10))
 data[:,:5] = skdim.datasets.hyperBall(n = 1000, d = 5, radius = 1, random_state = 0)
 data
 
-# + jupyter={"source_hidden": true}
 #estimate global intrinsic dimension
 danco = skdim.id.DANCo().fit(data)
 #estimate local intrinsic dimension (dimension in k-nearest-neighborhoods around each point):
@@ -45,10 +43,8 @@ lpca = skdim.id.lPCA().fit_pw(data,
                               n_neighbors = 100,
                               n_jobs = -1)
 
-# + jupyter={"source_hidden": true}
 #get estimated intrinsic dimension
 print(danco.dimension_, np.median(lpca.dimension_pw_))
-# -
 
 # ***
 # ## Rest fMRI Data
@@ -96,7 +92,26 @@ for rest_WL_sec in [30, 46, 60]: # All availalbe window lenghts
     np.save(PRJDIR+'/Data/Samika_DSet02/Intrinsic_Dimension_WL'+str(rest_WL_sec)+'sec.npy', rest_ID) # Save ID data for given WL as a numpy file
     print('++INFO: Saved ID data for WL', rest_WL_sec)
 
-import hvplot.pandas
+# +
+# Turn numpy array into oandas data frame
+# ---------------------------------------
+# We should have initally saved it this way
+
+for rest_WL_sec in [30, 46, 60]:
+    rest_ID_data = np.load(PRJDIR+'/Data/Samika_DSet02/Intrinsic_Dimension_WL'+str(rest_WL_sec)+'sec.npy', allow_pickle=True).item()
+    reformed_dict = {}
+    for outerKey, innerDict in rest_ID_data.items():
+        for innerKey, values in innerDict.items():
+            temp = np.empty((2224,))
+            temp[:] = np.nan
+            temp[:values.shape[0]] = values
+            reformed_dict[(outerKey,innerKey)] = temp
+    new_ID_df = pd.DataFrame(reformed_dict).T
+    new_ID_df.to_pickle(PRJDIR+'/Data/Samika_DSet02/Intrinsic_Dimension_WL'+str(rest_WL_sec)+'sec.pkl')
+# -
+
+rest_WL_sec = 30
+pd.read_pickle(PRJDIR+'/Data/Samika_DSet02/Intrinsic_Dimension_WL'+str(rest_WL_sec)+'sec.pkl')
 
 pd.DataFrame(rest_lpca.dimension_pw_).hvplot.hist(bins=50)
 
@@ -124,3 +139,13 @@ for task_WL_sec in [30, 45]: # All availalbe window lenghts
         task_ID[task_SBJ]= task_lpca.dimension_pw_ # Create new subject key in data dictionary and add ID data as np.array
     np.save(PRJDIR+'/Data/MultiTask/Intrinsic_Dimension_WL'+str(task_WL_sec)+'sec.npy', task_ID) # Save ID data for given WL as a numpy file
     print('++INFO: Saved ID data for WL', task_WL_sec)
+
+# Turn numpy array into oandas data frame
+# ---------------------------------------
+for task_WL_sec in [30, 45]:
+    task_ID_data = np.load(PRJDIR+'/Data/MultiTask/Intrinsic_Dimension_WL'+str(task_WL_sec)+'sec.npy', allow_pickle=True).item()
+    new_ID_df = pd.DataFrame(task_ID_data).T
+    new_ID_df.to_pickle(PRJDIR+'/Data/MultiTask/Intrinsic_Dimension_WL'+str(task_WL_sec)+'sec.pkl')
+
+task_WL_sec = 30
+pd.read_pickle(PRJDIR+'/Data/MultiTask/Intrinsic_Dimension_WL'+str(task_WL_sec)+'sec.pkl')
